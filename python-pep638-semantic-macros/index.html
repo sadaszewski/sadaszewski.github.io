@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>PEP 638 Playground</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a workbench. One toolbar, then source on the left (file tabs + editor)
+   and what the compiler made of it on the right (output / expansion / tree). */
+:root {
+  --paper: #eef1f6;
+  --panel: #fbfcfe;
+  --ink: #17202e;
+  --muted: #5d6a7c;
+  --line: #cfd6e2;
+  --bang: #b0215f;
+  --bang-ink: #ffffff;
+  --bang-soft: #f7dfe9;
+  --ok: #1f7a4d;
+  --err: #b3261e;
+  --gutter: #8a95a6;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10151d; --panel: #171e29; --ink: #e6ebf3; --muted: #97a3b6;
+    --line: #2b3545; --bang: #ff76ab; --bang-ink: #1b0a12; --bang-soft: #3a1c2a;
+    --ok: #5fd39a; --err: #ff8a80; --gutter: #5f6b7d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10151d; --panel: #171e29; --ink: #e6ebf3; --muted: #97a3b6;
+  --line: #2b3545; --bang: #ff76ab; --bang-ink: #1b0a12; --bang-soft: #3a1c2a;
+  --ok: #5fd39a; --err: #ff8a80; --gutter: #5f6b7d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 15px/1.5 var(--body);
+  padding-inline: 20px; padding-block: 18px 28px;
+}
+.wrap { max-width: 1400px; margin-inline: auto; display: flex; flex-direction: column; gap: 14px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+h1 { font: 700 26px/1.1 var(--display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h1 b { color: var(--bang); font-weight: 700; }
+.lede { flex-basis: 100%; margin: 0; color: var(--muted); max-width: 70ch; }
+.lede code, .hint code { font: 13px var(--mono); color: var(--ink); }
+.status { margin-left: auto; font: 500 13px var(--body); color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--gutter); }
+.status[data-state="ready"] .dot { background: var(--ok); }
+.status[data-state="error"] .dot { background: var(--err); }
+.status[data-state="loading"] .dot { animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: .25 } to { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .status .dot { animation: none !important; } }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.toolbar label { font-weight: 500; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+select, button { font: 500 14px var(--body); color: var(--ink); }
+select {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 10px; max-width: 100%;
+}
+button { cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); padding: 7px 14px; }
+button.run { background: var(--bang); border-color: var(--bang); color: var(--bang-ink); font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--bang); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 13px; }
+
+.bench { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 880px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.pane { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-width: 0; overflow: hidden; }
+.tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.tab {
+  border: 0; border-radius: 0; background: transparent; color: var(--muted);
+  padding: 9px 14px; font: 500 13px var(--mono); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--bang); }
+.tab .role { font: 400 11px var(--body); color: var(--muted); margin-left: 6px; }
+.results .tab { font-family: var(--body); font-size: 14px; }
+
+.editor { display: flex; height: min(64vh, 620px); min-height: 320px; }
+.lines {
+  flex: none; width: 3.4em; padding: 12px 8px 12px 0; margin: 0; overflow: hidden; text-align: right;
+  color: var(--gutter); font: 13px/1.55 var(--mono); user-select: none; white-space: pre;
+  border-right: 1px solid var(--line); font-variant-numeric: tabular-nums;
+}
+textarea {
+  flex: 1; min-width: 0; border: 0; resize: none; background: transparent; color: var(--ink);
+  font: 13px/1.55 var(--mono); padding: 12px; tab-size: 4; white-space: pre; overflow: auto;
+}
+textarea:focus { outline: none; }
+.view {
+  margin: 0; padding: 12px 14px; height: min(64vh, 620px); min-height: 320px; overflow: auto;
+  font: 13px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4;
+}
+.view.code { white-space: pre; overflow-wrap: normal; }
+.view .err { color: var(--err); }
+.view .note { color: var(--muted); font-family: var(--body); }
+.caption { margin: 0; padding: 8px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+
+.sheet { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 6px 28px; margin: 0; padding: 0; }
+.sheet div { min-width: 0; }
+.sheet dt { font: 600 13px var(--mono); color: var(--bang); margin-top: 8px; overflow-wrap: anywhere; }
+.sheet dd { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+h2 { font: 700 17px var(--display); margin: 10px 0 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>PEP 638 Playground<b>!</b></h1>
+    <div class="status" id="status" data-state="loading"><span class="dot"></span><span id="status-text">Loading Python…</span></div>
+    <p class="lede">CPython 3.14 with syntactic macros, compiled to WebAssembly and running in this tab. Edit the macro module and the program, then run: you get the output, the program after macro expansion, and the syntax tree the parser produced.</p>
+  </header>
+
+  <div class="toolbar">
+    <label for="example">Example</label>
+    <select id="example"></select>
+    <button class="run" id="run" disabled>Run</button>
+    <button id="reset">Reset example</button>
+    <span class="hint">Ctrl/⌘ + Enter runs. <code>main.py</code> is the program; the other files are importable modules.</span>
+  </div>
+
+  <div class="bench">
+    <section class="pane" aria-label="Source files">
+      <div class="tabs" id="file-tabs" role="tablist"></div>
+      <div class="editor">
+        <pre class="lines" id="lines" aria-hidden="true">1</pre>
+        <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Source code"></textarea>
+      </div>
+    </section>
+
+    <section class="pane results" aria-label="Results">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-view="output" aria-selected="true">Output</button>
+        <button class="tab" role="tab" data-view="expansion" aria-selected="false">After expansion</button>
+        <button class="tab" role="tab" data-view="ast" aria-selected="false">Parsed tree</button>
+      </div>
+      <pre class="view" id="view"><span class="note">Python is loading (about 12 MB the first time). The example runs as soon as it is ready.</span></pre>
+      <p class="caption" id="caption">What main.py printed.</p>
+    </section>
+  </div>
+
+  <h2>What this build understands</h2>
+  <dl class="sheet">
+    <div><dt>from! module import name [as alias]</dt><dd>Compile-time import of one macro, visible in the enclosing scope from that line on. <code>import! module.name as alias</code> also works.</dd></div>
+    <div><dt>name! args [import x] [as y]: body</dt><dd>Statement macro. Arguments, clauses and body are all optional. In the body, <code>"red" = 1</code> is allowed.</dd></div>
+    <div><dt>name!<br>next statement</dt><dd>Sibling macro: it receives the statement that follows it.</dd></div>
+    <div><dt>value = name!(args)</dt><dd>Expression macro. A line that <em>starts</em> with <code>name!</code> is always a statement macro, as the PEP specifies; wrap it in parentheses to use an expression macro there.</dd></div>
+    <div><dt>ast.MacroStmt · ast.MacroExpr · ast.StmtExpr</dt><dd>The new tree nodes (also as <code>macro_stmt</code>, <code>macro_expr</code>, <code>stmt_expr</code>).</dd></div>
+    <div><dt>macros.macro_processor(kind, version, *parts)</dt><dd>Decorator for processors. Also <code>macros.new_name(node)</code> for hygienic names and <code>macros.expand(tree)</code>.</dd></div>
+  </dl>
+</div>
+
+<script type="module">
+const EXAMPLES = [{"id": "1-basics", "title": "Basics: statement, expression and sibling macros", "files": {"main.py": "# Macros are imported at compile time, with from! or import!\nfrom! mymacros import unless\nfrom! mymacros import dbg\nfrom! mymacros import traced\n\ntemperature = 17\n\nunless! temperature > 20:            # statement macro with a body\n    print(\"Take a jacket.\")\n\ntotal = dbg!(temperature * 2 + 1)    # expression macro\nprint(\"total is\", total)\n\ntraced!                              # sibling macro: applies to the next statement\ndef area(width, height):\n    return width * height\n\nprint(area(3, 4))\n\n# The compiler records which macros (and versions) built this module:\nprint(__macros__)\n", "mymacros.py": "\"\"\"Macro processors: functions the compiler calls with the AST of a macro.\n\nA processor is a tuple (func, kind, version, additional_names); the\nmacro_processor decorator builds it.  func gets an ast.MacroStmt or\nast.MacroExpr node and returns the AST that replaces it.\n\"\"\"\nimport ast\nimport macros\n\n\n@macros.macro_processor(macros.STMT_MACRO, 1)\ndef unless(node):\n    # unless! test:        if not test:\n    #     body         →       body\n    return ast.If(test=ast.UnaryOp(ast.Not(), node.args),\n                  body=node.body, orelse=[])\n\n\n@macros.macro_processor(macros.EXPR_MACRO, 1)\ndef dbg(node):\n    # dbg!(expr) prints the source of expr and its value, and evaluates\n    # to the value. The source text only exists at compile time.\n    source = ast.unparse(node.args)\n    template = ast.parse(\"__import__('macro_runtime').show(SOURCE, VALUE)\",\n                         mode=\"eval\").body\n    template.args = [ast.Constant(source), node.args]\n    return template\n\n\n@macros.macro_processor(macros.SIBLING_MACRO, 1)\ndef traced(node):\n    # A sibling macro gets the statement that follows it as node.body[0].\n    # Here: print a line every time the function is entered.\n    func = node.body[0]\n    if not isinstance(func, ast.FunctionDef):\n        raise SyntaxError(\"traced! must be followed by a function definition\")\n    announce = ast.parse(f\"print('-> entering {func.name}')\").body[0]\n    func.body.insert(0, announce)\n    return func\n", "macro_runtime.py": "\"\"\"Ordinary run-time helpers used by the code that the macros generate.\"\"\"\n\n\ndef show(source, value):\n    print(f\"[dbg] {source} = {value!r}\")\n    return value\n"}}, {"id": "2-bijection", "title": "Bijection: data checked at compile time (PEP example)", "files": {"main.py": "from! mymacros import bijection\n\nbijection! color_to_code, code_to_color:\n    \"red\" = 1\n    \"blue\" = 2\n    \"green\" = 3\n\nprint(color_to_code)\nprint(code_to_color)\n\n# Try it: change the last line of the table to   \"green\" = 2\n# and run again. The mistake is reported at compile time.\n", "mymacros.py": "\"\"\"PEP 638, \"Compile-time-checked data structures\".\n\nOne table generates two dictionaries, and duplicates are rejected while\nthe program is compiled - before any of it runs.\n\"\"\"\nimport ast\nimport macros\n\n\n@macros.macro_processor(macros.STMT_MACRO, 1)\ndef bijection(node):\n    if not (isinstance(node.args, ast.Tuple) and len(node.args.elts) == 2):\n        raise SyntaxError(\"usage: bijection! forward_name, backward_name:\")\n    forward, backward = node.args.elts\n\n    keys, values = [], []\n    for stmt in node.body:\n        # The body of a macro may \"assign\" to anything:  \"red\" = 1\n        if not (isinstance(stmt, ast.Assign) and len(stmt.targets) == 1):\n            raise SyntaxError(\"each line of a bijection must be 'key = value'\")\n        keys.append(stmt.targets[0])\n        values.append(stmt.value)\n\n    for side, nodes in ((\"key\", keys), (\"value\", values)):\n        seen = set()\n        for item in nodes:\n            constant = ast.literal_eval(item)\n            if constant in seen:\n                error = SyntaxError(f\"duplicate {side} in bijection: {constant!r}\")\n                error.lineno = item.lineno        # point at the offending line\n                error.offset = item.col_offset + 1\n                raise error\n            seen.add(constant)\n\n    def assign(name, keys, values):\n        return ast.Assign([ast.Name(name.id, ast.Store())],\n                          ast.Dict(keys=keys, values=values))\n\n    return [assign(forward, keys, values), assign(backward, values, keys)]\n"}}, {"id": "3-switch", "title": "Switch: inner macros without processors", "files": {"main.py": "from! mymacros import switch\n\ndef describe(status):\n    switch! status:\n        case! 200:\n            return \"OK\"\n        case! 404:\n            return \"Not Found\"\n        case! 500:\n            return \"Server Error\"\n        default!:\n            return \"Unknown\"\n\nfor status in (200, 404, 418):\n    print(status, describe(status))\n", "mymacros.py": "\"\"\"A switch statement.\n\ncase! and default! are macros too, but they need no processor of their\nown: the compiler only looks up a macro when it reaches it, and switch!\nhas replaced them by then.\n\"\"\"\nimport ast\nimport macros\n\n\n@macros.macro_processor(macros.STMT_MACRO, 1)\ndef switch(node):\n    # A generated variable: \"$$switch_<line>_<column>\" cannot clash with\n    # a name of the program (hygiene, as recommended by the PEP).\n    subject = macros.new_name(node)\n    result = [ast.Assign([ast.Name(subject, ast.Store())], node.args)]\n\n    chain = None      # the if/elif chain under construction\n    for part in node.body:\n        if not isinstance(part, ast.MacroStmt) or part.name not in (\"case\", \"default\"):\n            raise SyntaxError(\"switch! can only contain case! and default!\")\n        if part.name == \"default\":\n            if chain is None:\n                result.extend(part.body)\n            else:\n                chain.orelse = part.body\n            break\n        test = ast.Compare(ast.Name(subject, ast.Load()), [ast.Eq()], [part.args])\n        branch = ast.If(test, part.body, [])\n        if chain is None:\n            result.append(branch)\n        else:\n            chain.orelse = [branch]\n        chain = branch\n    return result\n"}}, {"id": "4-calculator", "title": "Calculator: match! on syntax (PEP example)", "files": {"main.py": "import _ast\nimport ast\nfrom! mymacros import match\n\ndef calculate(node):\n    if isinstance(node, ast.Constant):\n        return node.value\n    match! node:\n        case! a + b:\n            return calculate(a) + calculate(b)\n        case! a - b:\n            return calculate(a) - calculate(b)\n        case! a * b:\n            return calculate(a) * calculate(b)\n        case! a / b:\n            return calculate(a) / calculate(b)\n    raise ValueError(f\"cannot calculate {ast.dump(node)}\")\n\nfor text in (\"1 + 2 * 3\", \"(10 - 4) / 3\", \"2 * 3 * 7\"):\n    print(text, \"=\", calculate(ast.parse(text, mode=\"eval\").body))\n", "mymacros.py": "\"\"\"PEP 638, \"Matching symbolic expressions\".\n\nmatch! node:                 $$match = node\n    case! a + b:        →    if isinstance($$match, BinOp) and isinstance($$match.op, Add):\n        ...                      a, b = $$match.left, $$match.right\n                                 ...\nThe patterns are written in the syntax they match.\n\"\"\"\nimport ast\nimport macros\n\n\ndef name(identifier, ctx=None):\n    return ast.Name(identifier, ctx or ast.Load())\n\n\n@macros.macro_processor(macros.STMT_MACRO, 1)\ndef match(node):\n    subject = macros.new_name(node)\n    result = [ast.Assign([name(subject, ast.Store())], node.args)]\n    chain = None\n    for case in node.body:\n        if not (isinstance(case, ast.MacroStmt) and case.name == \"case\"):\n            raise SyntaxError(\"match! can only contain case!\")\n        pattern = case.args\n        if not (isinstance(pattern, ast.BinOp)\n                and isinstance(pattern.left, ast.Name)\n                and isinstance(pattern.right, ast.Name)):\n            raise SyntaxError(\"only patterns like 'a + b' are supported\")\n        operator = type(pattern.op).__name__          # \"Add\", \"Sub\", ...\n        test = ast.parse(\n            f\"isinstance(S, _ast.BinOp) and isinstance(S.op, _ast.{operator})\",\n            mode=\"eval\").body\n        for sub in ast.walk(test):                    # S -> generated name\n            if isinstance(sub, ast.Name) and sub.id == \"S\":\n                sub.id = subject\n        bind = ast.parse(f\"{pattern.left.id}, {pattern.right.id} = S.left, S.right\").body[0]\n        for sub in ast.walk(bind.value):\n            if isinstance(sub, ast.Name):\n                sub.id = subject\n        branch = ast.If(test, [bind, *case.body], [])\n        if chain is None:\n            result.append(branch)\n        else:\n            chain.orelse = [branch]\n        chain = branch\n    return result\n"}}, {"id": "5-try-with", "title": "try_!/finally! and with_!: multi-part macros", "files": {"main.py": "from! mymacros import try_\nfrom! mymacros import with_\n\nclass Resource:\n    def __init__(self, label):\n        self.label = label\n    def __enter__(self):\n        print(\"open\", self.label)\n        return self\n    def __exit__(self, *exc_info):\n        print(\"close\", self.label)\n\ndef work():\n    try_!:\n        print(\"working\")\n        return \"result\"\n    finally!:\n        print(\"cleaning up\")\n\nprint(work())\n\nwith_! Resource(\"database\") as db:\n    print(\"using\", db.label)\n", "mymacros.py": "\"\"\"Prototyping language features (PEP 638, \"Prototyping language extensions\").\n\ntry_!/finally! is a macro in several parts: the processor declares the\nnames of the additional parts and receives one tree for each.\nwith! uses the \"as name\" clause of macro statements.\n\"\"\"\nimport ast\nimport macros\n\n\n@macros.macro_processor(macros.STMT_MACRO, 1, \"finally\")\ndef try_(node, finally_part):\n    if finally_part is None:\n        raise SyntaxError(\"try_! must be followed by finally!\")\n    return ast.Try(body=node.body, handlers=[], orelse=[],\n                   finalbody=finally_part.body)\n\n\n@macros.macro_processor(macros.STMT_MACRO, 1)\ndef with_(node):\n    # with_! expr as name:      name = expr.__enter__()\n    #     body             →    try: body\n    #                           finally: expr.__exit__(None, None, None)\n    # (simplified: exceptions are not passed to __exit__)\n    manager = macros.new_name(node)\n    target = node.asname or macros.new_name(node, \"unused\")\n    setup = ast.parse(f\"M = EXPR\\n{target} = M.__enter__()\").body\n    setup[0].targets[0].id = manager\n    setup[0].value = node.args\n    setup[1].value.func.value.id = manager\n    leave = ast.parse(\"M.__exit__(None, None, None)\").body[0]\n    leave.value.func.value.id = manager\n    return [*setup, ast.Try(body=node.body, handlers=[], orelse=[],\n                            finalbody=[leave])]\n"}}, {"id": "6-stmt-expr", "title": "Statement expressions: try/except inside an expression", "files": {"main.py": "from! mymacros import attempt\nfrom! mymacros import square\n\nvalues = [\"12\", \"x\", \"7.5\", \"\"]\nprint([attempt!(float(text), None) for text in values])\n\ndef noisy():\n    print(\"noisy() called\")\n    return 9\n\nprint(square!(noisy()))      # noisy() is called only once\n", "mymacros.py": "\"\"\"Statement expressions.\n\nast.StmtExpr(stmt, value) is the new node that lets an expression macro\nrun a statement: it executes stmt, then evaluates to value.\n\"\"\"\nimport ast\nimport macros\n\n\n@macros.macro_processor(macros.EXPR_MACRO, 1)\ndef attempt(node):\n    # attempt!(expression, fallback): a try/except inside an expression\n    if not (isinstance(node.args, ast.Tuple) and len(node.args.elts) == 2):\n        raise SyntaxError(\"usage: attempt!(expression, fallback)\")\n    expression, fallback = node.args.elts\n    result = macros.new_name(node)\n\n    def store(value):\n        return ast.Assign([ast.Name(result, ast.Store())], value)\n\n    statement = ast.Try(\n        body=[store(expression)],\n        handlers=[ast.ExceptHandler(ast.Name(\"Exception\", ast.Load()), None,\n                                    [store(fallback)])],\n        orelse=[], finalbody=[])\n    return ast.StmtExpr(stmt=statement, value=ast.Name(result, ast.Load()))\n\n\n@macros.macro_processor(macros.EXPR_MACRO, 1)\ndef square(node):\n    # Evaluate the argument once, use it twice.\n    temporary = macros.new_name(node)\n    return ast.StmtExpr(\n        stmt=ast.Assign([ast.Name(temporary, ast.Store())], node.args),\n        value=ast.BinOp(ast.Name(temporary, ast.Load()), ast.Mult(),\n                        ast.Name(temporary, ast.Load())))\n"}}, {"id": "7-fstring", "title": "f!(\"…\") and a zero-cost marker (PEP examples)", "files": {"main.py": "from! mymacros import f\nfrom! mymacros import do_nothing_marker\n\nname, items = \"Ada\", [3, 1, 2]\nprint(f!(\"Hello {name}, you have {len(items)} items: {sorted(items)!r}\"))\n\ndo_nothing_marker!\ndef foo():\n    return \"no decorator was called for this function\"\n\nprint(foo())\n", "mymacros.py": "\"\"\"PEP 638: \"The f-string f\"...\" could be implemented as macro as f!(\"...\").\"\n\nAlso a zero-cost marker: a sibling macro that leaves no trace at run time.\n\"\"\"\nimport ast\nimport macros\n\n\n@macros.macro_processor(macros.EXPR_MACRO, 1)\ndef f(node):\n    if not (isinstance(node.args, ast.Constant) and isinstance(node.args.value, str)):\n        raise SyntaxError(\"f! takes one string literal\")\n    # Let the parser do the work, at compile time.\n    return ast.parse(\"f\" + repr(node.args.value), mode=\"eval\").body\n\n\n@macros.macro_processor(macros.SIBLING_MACRO, 1)\ndef do_nothing_marker(node):\n    return node.body[0]\n"}}];
+
+const DRIVER = `
+import ast, contextlib, importlib, io, json, linecache, os, runpy, sys, traceback
+sys.dont_write_bytecode = True
+_WORK = "/playground"
+
+def _format(exc):
+    te = traceback.TracebackException.from_exception(exc)
+    seen = set()
+    def trim(t):
+        if t is None or id(t) in seen:
+            return
+        seen.add(id(t))
+        kept = [f for f in t.stack if f.filename.startswith(_WORK)]
+        t.stack[:] = kept
+        trim(t.__cause__); trim(t.__context__)
+    trim(te)
+    return "".join(te.format())
+
+def _playground_run(files_json):
+    files = json.loads(files_json)
+    os.makedirs(_WORK, exist_ok=True)
+    for old in os.listdir(_WORK):
+        if os.path.isfile(os.path.join(_WORK, old)):
+            os.remove(os.path.join(_WORK, old))
+    for name, text in files.items():
+        with open(os.path.join(_WORK, name), "w", encoding="utf-8") as f:
+            f.write(text)
+    if _WORK not in sys.path:
+        sys.path.insert(0, _WORK)
+    for name, module in list(sys.modules.items()):
+        if str(getattr(module, "__file__", "") or "").startswith(_WORK):
+            del sys.modules[name]
+    importlib.invalidate_caches()
+    linecache.clearcache()
+
+    path = os.path.join(_WORK, "main.py")
+    source = files.get("main.py", "")
+    result = {"error": False}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+        try:
+            runpy.run_path(path, run_name="__main__")
+        except SystemExit:
+            pass
+        except BaseException as exc:
+            result["error"] = True
+            result["traceback"] = _format(exc)
+    result["output"] = out.getvalue()
+    try:
+        result["ast"] = ast.dump(ast.parse(source, path), indent=2)
+    except BaseException as exc:
+        result["ast_error"] = _format(exc)
+    try:
+        import macros
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            tree = macros.expand(ast.parse(source, path), path)
+        result["expansion"] = ast.unparse(tree)
+    except BaseException as exc:
+        result["expansion_error"] = _format(exc)
+    return json.dumps(result)
+`;
+
+const $ = (id) => document.getElementById(id);
+const source = $("source"), lines = $("lines"), view = $("view"), caption = $("caption");
+const CAPTIONS = {
+  output: "What main.py printed.",
+  expansion: "main.py after the compiler expanded its macros, shown with ast.unparse(). Names starting with $ are generated by macros; $stmt_expr(…; value) is the notation for a statement expression, which has no syntax of its own.",
+  ast: "ast.dump() of main.py as parsed, before expansion. Look for MacroStmt and MacroExpr.",
+};
+
+let files = {}, order = [], current = "main.py", activeView = "output", result = null, runPlayground = null;
+
+function draft(key, value) {
+  try {
+    if (value === undefined) return localStorage.getItem(key);
+    if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value);
+  } catch { /* storage is a convenience only */ }
+  return null;
+}
+
+function loadExample(index, fresh) {
+  const example = EXAMPLES[index];
+  order = Object.keys(example.files);
+  files = { ...example.files };
+  if (!fresh) {
+    try {
+      const saved = JSON.parse(draft("pep638-draft-" + example.id) || "null");
+      if (saved) for (const name of order) if (typeof saved[name] === "string") files[name] = saved[name];
+    } catch { /* ignore a damaged draft */ }
+  }
+  current = "main.py";
+  renderTabs();
+  showFile();
+}
+
+function renderTabs() {
+  const tabs = $("file-tabs");
+  tabs.textContent = "";
+  for (const name of order) {
+    const tab = document.createElement("button");
+    tab.className = "tab"; tab.role = "tab"; tab.textContent = name;
+    tab.setAttribute("aria-selected", String(name === current));
+    const role = document.createElement("span");
+    role.className = "role";
+    role.textContent = name === "main.py" ? "program" : name === "mymacros.py" ? "macros" : "module";
+    tab.append(role);
+    tab.addEventListener("click", () => { current = name; renderTabs(); showFile(); });
+    tabs.append(tab);
+  }
+}
+
+function showFile() { source.value = files[current]; source.scrollTop = 0; updateLines(); }
+function updateLines() {
+  const count = source.value.split("\n").length;
+  let text = "";
+  for (let i = 1; i <= count; i++) text += i + "\n";
+  lines.textContent = text;
+  lines.scrollTop = source.scrollTop;
+}
+
+source.addEventListener("input", () => {
+  files[current] = source.value;
+  updateLines();
+  draft("pep638-draft-" + EXAMPLES[$("example").selectedIndex].id, JSON.stringify(files));
+});
+source.addEventListener("scroll", () => { lines.scrollTop = source.scrollTop; });
+source.addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    source.setRangeText("    ", source.selectionStart, source.selectionEnd, "end");
+    source.dispatchEvent(new Event("input"));
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); run(); }
+});
+
+function span(className, text) {
+  const node = document.createElement("span");
+  node.className = className; node.textContent = text;
+  return node;
+}
+
+function renderView() {
+  for (const tab of document.querySelectorAll(".results .tab"))
+    tab.setAttribute("aria-selected", String(tab.dataset.view === activeView));
+  caption.textContent = CAPTIONS[activeView];
+  view.classList.toggle("code", activeView !== "output");
+  if (!result) return;
+  view.textContent = "";
+  if (activeView === "output") {
+    if (result.output) view.append(result.output);
+    if (result.traceback) view.append(span("err", (result.output && !result.output.endsWith("\n") ? "\n" : "") + result.traceback));
+    if (!result.output && !result.traceback) view.append(span("note", "The program ran and printed nothing."));
+  } else if (activeView === "expansion") {
+    view.append(result.expansion !== undefined ? result.expansion : span("err", result.expansion_error));
+  } else {
+    view.append(result.ast !== undefined ? result.ast : span("err", result.ast_error));
+  }
+  view.scrollTop = 0;
+}
+for (const tab of document.querySelectorAll(".results .tab"))
+  tab.addEventListener("click", () => { activeView = tab.dataset.view; renderView(); });
+
+function setStatus(state, text) { $("status").dataset.state = state; $("status-text").textContent = text; }
+
+async function run() {
+  if (!runPlayground) return;
+  $("run").disabled = true;
+  const ready = $("status-text").textContent;
+  setStatus("loading", "Running…");
+  await new Promise((resolve) => setTimeout(resolve, 20));   // let the status paint
+  try {
+    result = JSON.parse(runPlayground(JSON.stringify(files)));
+    if (result.error) activeView = "output";
+  } catch (error) {
+    result = { output: "", traceback: String(error), error: true, expansion_error: String(error), ast_error: String(error) };
+    activeView = "output";
+  }
+  renderView();
+  setStatus("ready", ready);
+  $("run").disabled = false;
+}
+
+const select = $("example");
+EXAMPLES.forEach((example, index) => select.append(new Option(example.title, index)));
+const remembered = Number(draft("pep638-example"));
+if (Number.isInteger(remembered) && remembered >= 0 && remembered < EXAMPLES.length) select.selectedIndex = remembered;
+select.addEventListener("change", () => { draft("pep638-example", String(select.selectedIndex)); loadExample(select.selectedIndex); run(); });
+$("reset").addEventListener("click", () => {
+  draft("pep638-draft-" + EXAMPLES[select.selectedIndex].id, null);
+  loadExample(select.selectedIndex, true);
+  run();
+});
+$("run").addEventListener("click", run);
+loadExample(select.selectedIndex);
+renderView();
+
+// Where this page is hosted without the standard library archive, the
+// library comes as python_stdlib.json ({path: source}) and the archive
+// Python imports from is assembled here.
+const STDLIB_FROM_JSON = /*STDLIB_FROM_JSON*/false;
+
+function zipArchive(entries) {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  const crc32 = (bytes) => {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = table[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const encoder = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  const record = (signature, size, fill) => {
+    const bytes = new Uint8Array(size), data = new DataView(bytes.buffer);
+    data.setUint32(0, signature, true);
+    fill(data);
+    return bytes;
+  };
+  for (const [path, text] of entries) {
+    const name = encoder.encode(path), body = encoder.encode(text), crc = crc32(body);
+    const common = (data, at) => {
+      data.setUint16(at, 20, true); data.setUint16(at + 2, 0x0800, true);      // version, UTF-8 names
+      data.setUint16(at + 4, 0, true); data.setUint16(at + 6, 0, true);        // stored, time
+      data.setUint16(at + 8, 0x5a21, true); data.setUint32(at + 10, crc, true); // date 2025-01-01
+      data.setUint32(at + 14, body.length, true); data.setUint32(at + 18, body.length, true);
+      data.setUint16(at + 22, name.length, true);
+    };
+    parts.push(record(0x04034b50, 30, (data) => common(data, 4)), name, body);
+    const at = offset;
+    central.push(record(0x02014b50, 46, (data) => { data.setUint16(4, 20, true); common(data, 6); data.setUint32(42, at, true); }), name);
+    offset += 30 + name.length + body.length;
+  }
+  const centralSize = central.reduce((sum, part) => sum + part.length, 0);
+  const end = record(0x06054b50, 22, (data) => {
+    data.setUint16(8, entries.length, true); data.setUint16(10, entries.length, true);
+    data.setUint32(12, centralSize, true); data.setUint32(16, offset, true);
+  });
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}
+
+try {
+  if (STDLIB_FROM_JSON) {
+    setStatus("loading", "Loading the standard library…");
+    const library = await (await fetch("./python_stdlib.json")).json();
+    const archive = zipArchive(Object.entries(library));
+    const realFetch = globalThis.fetch.bind(globalThis);
+    globalThis.fetch = (input, options) =>
+      String(input?.url ?? input).endsWith("python_stdlib.zip")
+        ? Promise.resolve(new Response(archive, { status: 200, headers: { "Content-Type": "application/zip" } }))
+        : realFetch(input, options);
+    setStatus("loading", "Loading Python…");
+  }
+  const { loadPyodide } = await import("./pyodide.mjs");
+  const base = new URL("./", location.href).href;
+  const pyodide = await loadPyodide({ indexURL: base, packages: [] });
+  pyodide.runPython(DRIVER);
+  runPlayground = pyodide.globals.get("_playground_run");
+  const version = pyodide.runPython("import sys; '.'.join(map(str, sys.version_info[:3]))");
+  setStatus("ready", "CPython " + version + " with PEP 638 · Pyodide " + pyodide.version);
+  $("run").disabled = false;
+  run();
+} catch (error) {
+  setStatus("error", "Python could not be loaded");
+  view.textContent = "";
+  view.append(span("err", "The Python runtime could not be loaded in this page.\n\n" + error + "\n\n"),
+              span("note", "The runtime files (pyodide.mjs, pyodide.asm.mjs, pyodide.asm.wasm, the standard library, pyodide-lock.json) must be served next to this page over http(s). Use the downloadable bundle and its serve.py if this hosted copy is blocked."));
+}
+</script>
+
+</body>
+</html>
