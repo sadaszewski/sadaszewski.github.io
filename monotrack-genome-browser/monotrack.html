@@ -1,0 +1,1302 @@
+<title>Monotrack</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: instrument panel — fixed control head, one full-width signal pane, status rail beneath. */
+:root{
+  --paper:#f7f8fa; --panel:#ffffff; --ink:#15171c; --ink-dim:#5c6373; --ink-faint:#8b93a3;
+  --rule:#dde1e8; --rule-soft:#eceff4;
+  --accent:#3d4ea8; --accent-soft:#e8ebf7;
+  --base-a:#1f8a4c; --base-c:#2466c9; --base-g:#c07605; --base-t:#c33a36; --base-n:#9aa1b0;
+  --cons-pos:#3d4ea8; --cons-neg:#c33a36;
+  --font-ui:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --paper:#0e1014; --panel:#15181f; --ink:#e7eaf0; --ink-dim:#99a1b2; --ink-faint:#6a7284;
+  --rule:#272c36; --rule-soft:#1d2129;
+  --accent:#8c9cf0; --accent-soft:#1e2440;
+  --base-a:#4ec97f; --base-c:#5e9cf5; --base-g:#e5a73c; --base-t:#ef6b66; --base-n:#6a7284;
+  --cons-pos:#8c9cf0; --cons-neg:#ef6b66;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0e1014; --panel:#15181f; --ink:#e7eaf0; --ink-dim:#99a1b2; --ink-faint:#6a7284;
+  --rule:#272c36; --rule-soft:#1d2129;
+  --accent:#8c9cf0; --accent-soft:#1e2440;
+  --base-a:#4ec97f; --base-c:#5e9cf5; --base-g:#e5a73c; --base-t:#ef6b66; --base-n:#6a7284;
+  --cons-pos:#8c9cf0; --cons-neg:#ef6b66;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-ui);
+  font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;overflow-x:hidden}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  width:100%;max-width:1480px;margin:0 auto}
+
+/* ---- head ---- */
+header{border-bottom:1px solid var(--rule);background:var(--panel)}
+.head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-block:10px}
+.brand{display:flex;align-items:baseline;gap:9px;margin-right:2px}
+.brand b{font-size:16px;font-weight:700;letter-spacing:-.015em}
+.brand span{font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);letter-spacing:.04em}
+.locus{display:flex;gap:6px;flex:1 1 300px;min-width:0;position:relative}
+input[type=text],select{font-family:var(--font-mono);font-size:13px;color:var(--ink);
+  background:var(--paper);border:1px solid var(--rule);border-radius:5px;padding:7px 9px;min-width:0}
+select{font-family:var(--font-ui);cursor:pointer}
+input[type=text]{flex:1 1 auto;width:100%}
+input[type=text]:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font-family:var(--font-ui);font-size:13px;font-weight:500;color:var(--ink);
+  background:var(--panel);border:1px solid var(--rule);border-radius:5px;padding:7px 11px;cursor:pointer}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{filter:brightness(1.08);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+button:disabled:hover{border-color:var(--rule);color:var(--ink)}
+
+.hits{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:40;background:var(--panel);
+  border:1px solid var(--rule);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.14);
+  max-height:290px;overflow-y:auto;padding:4px}
+.hit{display:flex;gap:10px;align-items:baseline;padding:6px 8px;border-radius:4px;cursor:pointer}
+.hit:hover,.hit[aria-selected=true]{background:var(--accent-soft)}
+.hit b{font-weight:600;font-size:13px}
+.hit code{font-family:var(--font-mono);font-size:11px;color:var(--ink-dim);margin-left:auto;white-space:nowrap}
+.hit i{font-style:normal;font-size:12px;color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- toolbar ---- */
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-block:9px;border-bottom:1px solid var(--rule-soft)}
+.field{display:flex;align-items:center;gap:6px;min-width:0}
+.field label{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);white-space:nowrap}
+.nav{display:flex;gap:4px;margin-left:auto}
+.nav button{padding:6px 9px;font-family:var(--font-mono);font-size:12px}
+.span{font-family:var(--font-mono);font-size:12px;color:var(--ink-dim);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+
+/* ---- pane ---- */
+main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.pane{position:relative;background:var(--panel);border:1px solid var(--rule);border-radius:7px;
+  margin-block:12px;overflow:hidden}
+#cv{display:block;width:100%;cursor:crosshair;touch-action:none}
+.overlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.msg{font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);background:var(--panel);
+  border:1px solid var(--rule);border-radius:5px;padding:7px 12px}
+.tip{position:absolute;z-index:30;pointer-events:none;background:var(--panel);border:1px solid var(--rule);
+  border-radius:5px;padding:6px 9px;font-family:var(--font-mono);font-size:11.5px;line-height:1.5;
+  box-shadow:0 6px 18px rgba(0,0,0,.16);max-width:320px}
+.tip b{font-family:var(--font-ui);font-size:12px}
+
+/* ---- status + legend ---- */
+.rail{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding-block:0 14px;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+.rail .sep{width:1px;height:12px;background:var(--rule)}
+.legend{display:flex;gap:11px;align-items:center;flex-wrap:wrap}
+.key{display:flex;gap:5px;align-items:center}
+.sw{width:11px;height:11px;border-radius:2px;flex:none}
+.sw.line{height:3px;border-radius:0}
+
+/* ---- data drawer ---- */
+.drawer{border-top:1px solid var(--rule);background:var(--panel)}
+.drawer .wrap{padding-block:12px}
+.drawerhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.drawerhead h2{margin:0;font-size:13px;font-weight:600;letter-spacing:-.005em}
+.drawerhead .note{font-size:11.5px;color:var(--ink-faint);flex:1 1 auto;min-width:0}
+textarea{width:100%;min-width:0;height:170px;margin-top:10px;font-family:var(--font-mono);font-size:11.5px;
+  line-height:1.5;color:var(--ink);background:var(--paper);border:1px solid var(--rule);
+  border-radius:6px;padding:9px;resize:vertical;white-space:pre;overflow:auto}
+.toast{font-size:12px;color:var(--accent);font-weight:500}
+@media (max-width:620px){
+  .brand span{display:none}
+  .nav{margin-left:0;width:100%}
+  .nav button{flex:1 1 auto}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header>
+  <div class="wrap head">
+    <div class="brand"><b>Monotrack</b><span>hg38 · GRCh38</span></div>
+    <div class="locus">
+      <input type="text" id="locusInput" value="chr6:16,299,112-16,761,491"
+             spellcheck="false" autocomplete="off" aria-label="Locus or gene symbol">
+      <button class="primary" id="goBtn">Go</button>
+      <div class="hits" id="hits" hidden></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap bar">
+  <div class="field">
+    <label for="modeSel">Showing</label>
+    <select id="modeSel">
+      <option value="seq">Sequence</option>
+      <option value="gencode" selected>GENCODE V50</option>
+      <option value="phylop">phyloP · 470-way</option>
+      <option value="phastcons">phastCons · 470-way</option>
+      <option value="multiz">Multiz · 470-way</option>
+    </select>
+  </div>
+  <div class="field" id="spWrap" hidden>
+    <label for="spSel">Species</label>
+    <select id="spSel"></select>
+  </div>
+  <div class="span" id="spanOut">—</div>
+  <div class="nav">
+    <button id="panL" title="Pan left">◀</button>
+    <button id="zoomOut" title="Zoom out">−</button>
+    <button id="zoomIn" title="Zoom in">+</button>
+    <button id="panR" title="Pan right">▶</button>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="pane">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="overlay" hidden><div class="msg" id="msg">Loading…</div></div>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+  <div class="rail">
+    <div class="legend" id="legend"></div>
+    <div class="sep"></div>
+    <div id="regime">—</div>
+    <div class="sep"></div>
+    <div id="netOut">0 KiB · 0 requests</div>
+  </div>
+</main>
+
+<div class="drawer">
+  <div class="wrap">
+    <div class="drawerhead">
+      <h2>Data for this view</h2>
+      <div class="note" id="dataNote">Press Extract to pull the visible interval in its native format.</div>
+      <button id="extractBtn">Extract</button>
+      <button id="copyBtn" disabled>Copy</button>
+      <button id="dlBtn" disabled>Download</button>
+      <span class="toast" id="toast"></span>
+    </div>
+    <textarea id="dataOut" spellcheck="false" readonly placeholder="FASTA, BED12, bedGraph or MAF — whichever matches what is on screen."></textarea>
+  </div>
+</div>
+<script type="module">
+/* ============================ BBI reader ============================ */
+const BIGWIG_MAGIC=0x888ffc26, BIGBED_MAGIC=0x8789f2eb, CTREE=0x78ca8c91, RTREE=0x2468ace0;
+async function inflate(buf){
+  const s=new Blob([buf]).stream().pipeThrough(new DecompressionStream('deflate'));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+class Cur{
+  constructor(b,le,o=0){this.dv=new DataView(b.buffer,b.byteOffset,b.byteLength);this.le=le;this.off=o;}
+  u8(){return this.dv.getUint8(this.off++)}
+  u16(){const v=this.dv.getUint16(this.off,this.le);this.off+=2;return v}
+  u32(){const v=this.dv.getUint32(this.off,this.le);this.off+=4;return v}
+  u64(){const v=this.dv.getBigUint64(this.off,this.le);this.off+=8;return Number(v)}
+  f32(){const v=this.dv.getFloat32(this.off,this.le);this.off+=4;return v}
+  f64(){const v=this.dv.getFloat64(this.off,this.le);this.off+=8;return v}
+  bytes(n){const v=new Uint8Array(this.dv.buffer,this.dv.byteOffset+this.off,n);this.off+=n;return v}
+  cstr(){let s='';for(;;){const c=this.u8();if(c===0)break;s+=String.fromCharCode(c)}return s}
+}
+const NET={bytes:0,reqs:0};
+class BBIFile{
+  constructor(url){this.url=url;this._h=null;this._c=null;this._cache=new Map();}
+  async _read(start,len){
+    if(len<=0) return new Uint8Array(0);
+    const res=await fetch(this.url,{headers:{Range:`bytes=${start}-${start+len-1}`}});
+    if(!res.ok&&res.status!==206) throw new Error(`HTTP ${res.status}`);
+    const b=new Uint8Array(await res.arrayBuffer());
+    NET.bytes+=b.byteLength; NET.reqs++; return b;
+  }
+  async header(){
+    if(this._h) return this._h;
+    const buf=await this._read(0,64);
+    const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
+    const mLE=dv.getUint32(0,true), mBE=dv.getUint32(0,false);
+    let le,magic;
+    if(mLE===BIGWIG_MAGIC||mLE===BIGBED_MAGIC){le=true;magic=mLE}
+    else if(mBE===BIGWIG_MAGIC||mBE===BIGBED_MAGIC){le=false;magic=mBE}
+    else throw new Error('not a BBI file');
+    const c=new Cur(buf,le,4);
+    const h={le,magic,kind:magic===BIGWIG_MAGIC?'bigwig':'bigbed',version:c.u16(),zoomLevels:c.u16(),
+      chromTreeOffset:c.u64(),fullDataOffset:c.u64(),fullIndexOffset:c.u64(),
+      fieldCount:c.u16(),definedFieldCount:c.u16(),autoSqlOffset:c.u64(),
+      totalSummaryOffset:c.u64(),uncompressBufSize:c.u32()};
+    const zb=await this._read(64,24*h.zoomLevels); const zc=new Cur(zb,le,0);
+    h.zooms=[];
+    for(let i=0;i<h.zoomLevels;i++){const r=zc.u32();zc.u32();const d=zc.u64(),x=zc.u64();
+      h.zooms.push({reductionLevel:r,dataOffset:d,indexOffset:x})}
+    h.zooms.sort((a,b)=>a.reductionLevel-b.reductionLevel);
+    if(h.totalSummaryOffset>0){const sb=await this._read(h.totalSummaryOffset,40);const sc=new Cur(sb,le,0);
+      h.totalSummary={validCount:sc.u64(),minVal:sc.f64(),maxVal:sc.f64(),sumData:sc.f64(),sumSquares:sc.f64()}}
+    this._h=h; return h;
+  }
+  async chroms(){
+    if(this._c) return this._c;
+    const h=await this.header();
+    const head=await this._read(h.chromTreeOffset,32); const hc=new Cur(head,h.le,0);
+    if(hc.u32()!==CTREE) throw new Error('bad chrom tree');
+    hc.u32(); const keySize=hc.u32(), valSize=hc.u32(); hc.u64();
+    const byName=new Map(), self=this;
+    async function walk(off){
+      const nh=new Cur(await self._read(off,4),h.le,0);
+      const isLeaf=nh.u8(); nh.u8(); const count=nh.u16();
+      const itemSize=isLeaf?keySize+valSize:keySize+8;
+      const bc=new Cur(await self._read(off+4,count*itemSize),h.le,0);
+      const kids=[];
+      for(let i=0;i<count;i++){
+        const kb=bc.bytes(keySize); let key='';
+        for(const b of kb){if(b===0)break;key+=String.fromCharCode(b)}
+        if(isLeaf){const id=bc.u32(),size=bc.u32();byName.set(key,{id,size,name:key})}
+        else kids.push(bc.u64());
+      }
+      for(const k of kids) await walk(k);
+    }
+    await walk(h.chromTreeOffset+32);
+    this._c={byName}; return this._c;
+  }
+  async _blocks(indexOffset,chromId,start,end){
+    const h=await this.header();
+    const hc=new Cur(await this._read(indexOffset,48),h.le,0);
+    if(hc.u32()!==RTREE) throw new Error('bad r-tree');
+    const out=[], self=this;
+    const ov=(sC,sB,eC,eB)=>(chromId<eC||(chromId===eC&&start<eB))&&(chromId>sC||(chromId===sC&&end>sB));
+    async function walk(off){
+      const nh=new Cur(await self._read(off,4),h.le,0);
+      const isLeaf=nh.u8(); nh.u8(); const count=nh.u16();
+      if(!count) return;
+      const bc=new Cur(await self._read(off+4,count*(isLeaf?32:24)),h.le,0);
+      const kids=[];
+      for(let i=0;i<count;i++){
+        const sC=bc.u32(),sB=bc.u32(),eC=bc.u32(),eB=bc.u32();
+        if(isLeaf){const o=bc.u64(),sz=bc.u64(); if(ov(sC,sB,eC,eB)) out.push({offset:o,size:sz})}
+        else{const o=bc.u64(); if(ov(sC,sB,eC,eB)) kids.push(o)}
+      }
+      for(const k of kids) await walk(k);
+    }
+    await walk(indexOffset+48);
+    out.sort((a,b)=>a.offset-b.offset);
+    return out;
+  }
+  async _fetchBlocks(blocks,maxGap=16384,budget=Infinity){
+    if(!blocks.length) return [];
+    const h=await this.header();
+    const groups=[]; let cur={start:blocks[0].offset,end:blocks[0].offset+blocks[0].size,items:[blocks[0]]};
+    for(let i=1;i<blocks.length;i++){const b=blocks[i];
+      if(b.offset-cur.end<=maxGap){cur.end=Math.max(cur.end,b.offset+b.size);cur.items.push(b)}
+      else{groups.push(cur);cur={start:b.offset,end:b.offset+b.size,items:[b]}}}
+    groups.push(cur);
+    const out=[]; let spent=0;
+    for(const g of groups){
+      if(spent+(g.end-g.start)>budget) break;
+      spent+=g.end-g.start;
+      const raw=await this._read(g.start,g.end-g.start);
+      for(const b of g.items){
+        const key=b.offset+':'+b.size;
+        let d=this._cache.get(key);
+        if(!d){
+          const slice=raw.subarray(b.offset-g.start,b.offset-g.start+b.size);
+          d=h.uncompressBufSize>0?await inflate(slice):slice;
+          if(this._cache.size>400) this._cache.clear();
+          this._cache.set(key,d);
+        }
+        out.push(d);
+      }
+    }
+    return out;
+  }
+  async wigValues(chromName,start,end){
+    const h=await this.header(); const {byName}=await this.chroms();
+    const chrom=byName.get(chromName); if(!chrom) return [];
+    const datas=await this._fetchBlocks(await this._blocks(h.fullIndexOffset,chrom.id,start,end));
+    const out=[];
+    for(const data of datas){
+      const c=new Cur(data,h.le,0);
+      while(c.off<data.byteLength){
+        const chromId=c.u32(), cs=c.u32(); c.u32();
+        const step=c.u32(), span=c.u32(), type=c.u8(); c.u8();
+        const n=c.u16();
+        for(let i=0;i<n;i++){
+          let s,e,v;
+          if(type===1){s=c.u32();e=c.u32();v=c.f32()}
+          else if(type===2){s=c.u32();v=c.f32();e=s+span}
+          else{s=cs+i*step;e=s+span;v=c.f32()}
+          if(chromId===chrom.id&&e>start&&s<end) out.push({start:s,end:e,value:v});
+        }
+      }
+    }
+    out.sort((a,b)=>a.start-b.start); return out;
+  }
+  async zoomValues(chromName,start,end,targetBins=1200){
+    const h=await this.header(); const {byName}=await this.chroms();
+    const chrom=byName.get(chromName); if(!chrom||!h.zooms.length) return null;
+    const want=(end-start)/targetBins;
+    let zoom=null;
+    for(const z of h.zooms){ if(z.reductionLevel<=want) zoom=z; else break; }
+    if(!zoom) return null;
+    const datas=await this._fetchBlocks(await this._blocks(zoom.indexOffset,chrom.id,start,end));
+    const out=[];
+    for(const data of datas){
+      const c=new Cur(data,h.le,0);
+      while(c.off+32<=data.byteLength){
+        const chromId=c.u32(), s=c.u32(), e=c.u32(), valid=c.u32();
+        const mn=c.f32(), mx=c.f32(), sum=c.f32(); c.f32();
+        if(chromId===chrom.id&&e>start&&s<end)
+          out.push({start:s,end:e,validCount:valid,min:mn,max:mx,mean:valid?sum/valid:0});
+      }
+    }
+    out.sort((a,b)=>a.start-b.start);
+    return {reductionLevel:zoom.reductionLevel,bins:out};
+  }
+  async bedFeatures(chromName,start,end,maxItems=30000,budget=Infinity){
+    const h=await this.header(); const {byName}=await this.chroms();
+    const chrom=byName.get(chromName); if(!chrom) return [];
+    const blocks=await this._blocks(h.fullIndexOffset,chrom.id,start,end);
+    const datas=await this._fetchBlocks(blocks,16384,budget);
+    const out=[]; let truncated=blocks.length>0&&datas.length<blocks.length;
+    for(const data of datas){
+      const c=new Cur(data,h.le,0);
+      while(c.off<data.byteLength&&out.length<maxItems){
+        const chromId=c.u32(), s=c.u32(), e=c.u32(), rest=c.cstr();
+        if(chromId===chrom.id&&e>start&&s<end)
+          out.push({chrom:chromName,start:s,end:e,fields:rest.length?rest.split('\t'):[]});
+      }
+    }
+    out.sort((a,b)=>a.start-b.start);
+    out.truncated=truncated;
+    return out;
+  }
+}
+function parseGenePred(f){
+  const x=f.fields, n=parseInt(x[6],10)||0;
+  const sizes=(x[7]||'').split(',').filter(Boolean).map(Number);
+  const starts=(x[8]||'').split(',').filter(Boolean).map(Number);
+  const exons=[];
+  for(let i=0;i<Math.min(n,sizes.length,starts.length);i++)
+    exons.push({start:f.start+starts[i],end:f.start+starts[i]+sizes[i]});
+  return {chrom:f.chrom,start:f.start,end:f.end,name:x[0],strand:x[2]||'+',
+    thickStart:Number(x[3]),thickEnd:Number(x[4]),exons,
+    gene:x[14]||x[9]||x[0],geneType:x[16]||x[13]||''};
+}
+function parseMaf(f){
+  const text=(f.fields[0]||'').replace(/;/g,'\n');
+  const rows=[];
+  for(const line of text.split('\n')){
+    if(!line.startsWith('s ')) continue;
+    const p=line.trim().split(/\s+/); if(p.length<7) continue;
+    const d=p[1].indexOf('.');
+    rows.push({db:d===-1?p[1]:p[1].slice(0,d),seq:d===-1?'':p[1].slice(d+1),
+      start:+p[2],size:+p[3],strand:p[4],srcSize:+p[5],text:p[6]});
+  }
+  return {chrom:f.chrom,start:f.start,end:f.end,rows,raw:text};
+}
+
+/* ============================ 2bit reader ============================ */
+const BASES=['T','C','A','G'];
+class TwoBit{
+  constructor(url){this.url=url;this._h=null;this._i=null;this._r=new Map();}
+  async _read(start,len){
+    if(len<=0) return new Uint8Array(0);
+    const res=await fetch(this.url,{headers:{Range:`bytes=${start}-${start+len-1}`}});
+    if(!res.ok&&res.status!==206) throw new Error(`HTTP ${res.status}`);
+    const b=new Uint8Array(await res.arrayBuffer());
+    NET.bytes+=b.byteLength; NET.reqs++; return b;
+  }
+  async header(){
+    if(this._h) return this._h;
+    const buf=await this._read(0,16);
+    const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
+    let le=true;
+    if(dv.getUint32(0,true)!==0x1a412743){
+      if(dv.getUint32(0,false)===0x1a412743) le=false; else throw new Error('not a 2bit');
+    }
+    this._h={le,version:dv.getUint32(4,le),seqCount:dv.getUint32(8,le)};
+    return this._h;
+  }
+  async index(){
+    if(this._i) return this._i;
+    const h=await this.header();
+    const buf=await this._read(16,Math.min(4194304,64+h.seqCount*160));
+    const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
+    let off=0; const m=new Map();
+    for(let i=0;i<h.seqCount;i++){
+      const ns=dv.getUint8(off); off+=1;
+      let name=''; for(let j=0;j<ns;j++) name+=String.fromCharCode(dv.getUint8(off+j));
+      off+=ns; m.set(name,dv.getUint32(off,h.le)); off+=4;
+    }
+    this._i=m; return m;
+  }
+  async record(chrom){
+    if(this._r.has(chrom)) return this._r.get(chrom);
+    const h=await this.header(); const idx=await this.index();
+    const ro=idx.get(chrom); if(ro===undefined) throw new Error(`no sequence ${chrom}`);
+    const head=await this._read(ro,8);
+    const dv=new DataView(head.buffer,head.byteOffset,head.byteLength);
+    const dnaSize=dv.getUint32(0,h.le), nCount=dv.getUint32(4,h.le);
+    const afterN=ro+8+nCount*8;
+    const mb=await this._read(afterN,4);
+    const mCount=new DataView(mb.buffer,mb.byteOffset,mb.byteLength).getUint32(0,h.le);
+    const nb=await this._read(ro+8,nCount*8);
+    const ndv=new DataView(nb.buffer,nb.byteOffset,nb.byteLength);
+    const nStarts=new Uint32Array(nCount), nSizes=new Uint32Array(nCount);
+    for(let i=0;i<nCount;i++){nStarts[i]=ndv.getUint32(i*4,h.le);nSizes[i]=ndv.getUint32(nCount*4+i*4,h.le)}
+    const rec={dnaSize,dnaOffset:afterN+4+mCount*8+4,nStarts,nSizes};
+    this._r.set(chrom,rec); return rec;
+  }
+  async sequence(chrom,start,end){
+    const rec=await this.record(chrom);
+    start=Math.max(0,start); end=Math.min(rec.dnaSize,end);
+    if(end<=start) return '';
+    const bs=Math.floor(start/4), be=Math.ceil(end/4);
+    const bytes=await this._read(rec.dnaOffset+bs,be-bs);
+    const len=end-start, out=new Array(len);
+    for(let i=0;i<len;i++){
+      const pos=start+i, b=bytes[(pos>>2)-bs], shift=6-2*(pos&3);
+      out[i]=BASES[(b>>shift)&3];
+    }
+    for(let k=0;k<rec.nStarts.length;k++){
+      const ns=rec.nStarts[k], ne=ns+rec.nSizes[k];
+      if(ne<=start||ns>=end) continue;
+      for(let p=Math.max(ns,start);p<Math.min(ne,end);p++) out[p-start]='N';
+    }
+    return out.join('');
+  }
+  async chromSize(chrom){return (await this.record(chrom)).dnaSize}
+}
+
+/* ============================ sources ============================ */
+const HG='https://hgdownload.soe.ucsc.edu';
+const SRC={
+  twobit:new TwoBit(`${HG}/gbdb/hg38/hg38.2bit`),
+  gencode:new BBIFile(`${HG}/gbdb/hg38/gencode/gencodeV50.bb`),
+  phylop:new BBIFile(`${HG}/goldenPath/hg38/phyloP470way/hg38.phyloP470way.bw`),
+  phastcons:new BBIFile(`${HG}/goldenPath/hg38/phastCons470way/hg38.phastCons470way.bw`),
+  maf:new BBIFile(`${HG}/goldenPath/hg38/multiz470way/multiz470way.bigMaf`),
+  mafsum:new BBIFile(`${HG}/goldenPath/hg38/multiz470way/multiz470waySummary.bb`),
+};
+const SPECIES=[["hg38","human"],["panPan3","pygmy chimpanzee"],["panTro6","chimpanzee"],["gorGor6","western lowland gorilla"],["ponAbe3","Sumatran orangutan"],["HLhylMol2","silvery gibbon"],["HLnomLeu4","northern white cheeked gibbon"],["rheMac10","Rhesus monkey"],["HLmacFus1","Japanese macaque"],["HLmacFas6","crab eating macaque"],["macNem1","pig tailed macaque"],["HLpapAnu5","olive baboon"],["HLtheGel1","gelada"],["cerAty1","sooty mangabey"],["HLmanSph1","mandrill"],["manLeu1","drill"],["HLcerMon1","Mona monkey"],["HLcerNeg1","De Brazza's monkey"],["HLallNig1","Allen's swamp monkey"],["HLeryPat1","red guenon"],["chlSab2","green monkey"],["HLpilTep2","Ugandan red Colobus"],["colAng1","Angolan colobus"],["HLsemEnt1","Hanuman langur"],["HLtraFra1","Francois's langur"],["nasLar1","proboscis monkey"],["HLpygNem1","red shanked douc langur"],["HLrhiRox2","golden snub nosed monkey"],["rhiBie1","black snub nosed monkey"],["HLpitPit1","white faced saki"],["HLpleDon1","Bolivian titi"],["HLateGeo1","black handed spider monkey"],["HLaloPal1","mantled howler monkey"],["HLsaiBol1","Bolivian squirrel monkey"],["saiBol1","Bolivian squirrel monkey"],["HLsapApe1","tufted capuchin"],["cebCap1","Panamanian white faced capuchin"],["HLcebAlb1","white fronted capuchin"],["aotNan1","Ma's night monkey"],["HLsagImp1","tamarin"],["HLcalJac4","white tufted ear marmoset"],["HLcalPym1","pygmy marmoset"],["tarSyr2","Philippine tarsier"],["HLdauMad1","aye aye"],["HLindInd1","babakoto"],["proCoq1","Coquerel's sifaka"],["HLcheMed1","lesser dwarf lemur"],["HLmirCoq1","Coquerel's mouse lemur"],["HLmirZaz1","northern giant mouse lemur"],["micMur3","gray mouse lemur"],["HLmicSpe31","mouse lemur"],["HLmicTav1","northern rufous mouse lemur"],["HLlemCat1","Ring tailed lemur"],["HLproSim1","greater bamboo lemur"],["HLeulFul1","brown lemur"],["HLeulMon1","mongoose lemur"],["eulFla1","Sclater's lemur"],["HLeulFla1","Sclater's lemur"],["eulMac1","black lemur"],["HLnycCou1","slow loris"],["otoGar3","small eared galago"],["HLgalVar2","Sunda flying lemur"],["mm10","house mouse"],["mm39","house mouse"],["HLmusSpr1","western wild mouse"],["HLmusSpi1","steppe mouse"],["HLmusCar1","Ryukyu mouse"],["HLmusPah1","shrew mouse"],["HLmasCou1","southern multimammate mouse"],["HLapoSyl1","European woodmouse"],["HLarvNil1","African grass rat"],["HLgraSur1","African woodland thicket rat"],["HLratRat7","black rat"],["rn6","Norway rat"],["HLratNor7","Norway rat"],["HLacoRus1","golden spiny mouse"],["HLacoCah1","Egyptian spiny mouse"],["HLpsaObe1","fat sand rat"],["HLmerUng1","Mongolian gerbil"],["HLrhoOpi1","great gerbil"],["HLcriGri3","Chinese hamster"],["mesAur1","golden hamster"],["HLsigHis1","hispid cotton rat"],["HLneoLep1","desert woodrat"],["HLonyTor1","southern grasshopper mouse"],["HLperNas1","northern rock mouse"],["HLperCri1","canyon mouse"],["HLperEre1","cactus mouse"],["HLperCal2","California deer mouse"],["HLperLeu1","white footed mouse"],["HLperManBai2","prairie deer mouse"],["HLperPol1","oldfield mouse"],["HLondZib1","muskrat"],["HLmyoGla2","bank vole"],["HLellTal1","northern mole vole"],["HLellLut1","Transcaucasian mole vole"],["HLarvAmp1","Eurasian water vole"],["HLmicFor1","reed vole"],["HLmicOec1","root vole"],["micOch1","prairie vole"],["HLmicArv1","common vole"],["HLmicAgr2","short tailed field vole"],["HLcriGam1","Gambian giant pouched rat"],["nanGal1","Upper Galilee mountains blind mole rat"],["HLrhiPru1","hoary bamboo rat"],["HLzapHud1","meadow jumping mouse"],["jacJac1","lesser Egyptian jerboa"],["HLallBul1","Gobi jerboa"],["HLcasCan3","American beaver"],["HLperLonPac1","Pacific pocket mouse"],["HLdipSte1","Stephens's kangaroo rat"],["dipOrd2","Ord's kangaroo rat"],["HLpedCap1","springhare"],["HLcteGun1","northern gundi"],["HLhysCri1","crested porcupine"],["HLereDor1","North American porcupine"],["HLcoePre1","Brazilian porcupine"],["HLdasPun1","punctate agouti"],["HLdolPat1","Patagonian cavy"],["HLhydHyd1","capybara"],["cavApe1","Brazilian guinea pig"],["cavPor3","domestic guinea pig"],["HLcavTsc1","montane guinea pig"],["chiLan1","long tailed chinchilla"],["HLdinBra1","pacarana"],["HLmyoCoy1","nutria"],["HLcteSoc1","social tuco tuco"],["octDeg1","degu"],["HLthrSwi1","greater cane rat"],["HLpetTyp1","dassie rat"],["hetGla2","naked mole rat"],["HLfukDam2","Damara mole rat"],["HLaplRuf1","mountain beaver"],["HLsciVul1","Eurasian red squirrel"],["HLsciCar1","gray squirrel"],["HLxerIna1","South African ground squirrel"],["HLmarFla1","yellow bellied marmot"],["HLmarHim1","Himalayan marmot"],["HLmarMar1","Alpine marmot"],["HLmarVan1","Vancouver Island marmot"],["HLmarMon1","woodchuck"],["HLmarMon2","woodchuck"],["HLspeDau1","Daurian ground squirrel"],["HLuroPar1","Arctic ground squirrel"],["speTri2","thirteen lined ground squirrel"],["HLcynGun1","Gunnison's prairie dog"],["HLmusAve1","hazel dormouse"],["HLgliGli1","Fat dormouse"],["HLgraMur1","woodland dormouse"],["ochPri3","American pika"],["HLlepTim1","Mountain hare"],["HLlepAme1","snowshoe hare"],["HLsylBac1","brush rabbit"],["HLoryCunCun4","European rabbit"],["oryCun2","rabbit"],["HLoryCun3","rabbit"],["tupBel1","northern tree shrew"],["tupChi1","Chinese tree shrew"],["panHod1","chiru"],["HLoviCan1","bighorn sheep"],["HLhemHyl1","Nilgiri tahr"],["HLoviCan2","bighorn sheep"],["HLoviNivLyd1","snow sheep"],["HLoviAmm1","argali"],["HLoviAri5","sheep"],["HLoviOri1","Asiatic mouflon"],["HLammLer1","aoudad"],["HLcapSib1","Siberian ibex"],["HLcapIbe1","Alpine ibex"],["HLoreAme1","mountain goat"],["HLcapHir2","goat"],["HLcapAeg1","wild goat"],["HLconTau2","brindled gnu"],["HLbeaHun1","Cobus hunteri"],["HLdamLun1","topi"],["HLoryGaz1","gemsbok"],["HLoryDam1","scimitar horned oryx"],["HLhipNig1","sable antelope"],["HLhipEqu1","roan antelope"],["HLredRed1","Bohar reedbuck"],["HLkobEll1","waterbuck"],["HLkobLecLec1","lechwe"],["HLmadKir1","Kirk's dik dik"],["HLrapCam1","steenbok"],["HLproPrz1","Przewalski's gazelle"],["HLnanGra1","Grant's gazelle"],["HLeudTho1","Thomson's gazelle"],["HLsaiTat1","saiga antelope"],["HLantMar1","springbok"],["HLlitWal1","gerenuk"],["HLneoPyg1","royal antelope"],["HLoreOre1","klipspringer"],["HLphiMax1","Maxwell's duiker"],["HLcepHar1","Harvey's duiker"],["HLsylGri1","bush duiker"],["HLaepMel1","impala"],["HLneoMos1","suni"],["HLbubBub2","water buffalo"],["HLsynCaf1","African buffalo"],["bisBis1","American bison"],["HLbosInd2","zebu cattle"],["bosTau9","cattle"],["HLbosMut2","wild yak"],["HLbosGru1","domestic yak"],["HLbosGau1","gaur"],["HLbosFro1","gayal"],["HLtraImb1","lesser kudu"],["HLtraStr1","greater kudu"],["HLtraScr1","bushbuck"],["HLmosMos1","Siberian musk deer"],["HLmosBer1","Chinese forest musk deer"],["HLmosChr1","alpine musk deer"],["HLalcAlc1","Eurasian elk"],["HLelaDav1","Pere David's deer"],["HLranTar1","reindeer"],["HLranTarGra2","porcupine caribou"],["HLodoHem1","mule deer"],["HLodoVir3","white tailed deer"],["HLodoVir2","white tailed deer"],["HLodoVir1","white tailed deer"],["HLhydIne1","Chinese water deer"],["HLcapPyg1","Eastern roe deer"],["HLmunRee1","Reeves' muntjac"],["HLmunMun1","muntjak"],["HLmunCri1","black muntjac"],["HLcerHanYar1","Yarkand deer"],["HLaxiPor1","Hog deer"],["HLprzAlb1","white lipped deer"],["HLcerEla1","Central European red deer"],["HLantAme1","pronghorn"],["HLokaJoh2","okapi"],["HLgirCam1","giraffe"],["HLgirTip1","Masai giraffe"],["HLgirCam2","giraffe"],["HLtraKan1","lesser mouse deer"],["HLtraJav1","Java mouse deer"],["HLplaMin1","Indus River dolphin"],["lipVex1","Yangtze River dolphin"],["HLdelLeu2","beluga whale"],["orcOrc1","killer whale"],["HLlagObl1","Pacific white sided dolphin"],["HLgloMel1","long finned pilot whale"],["HLpepEle1","melon headed whale"],["HLsouChi1","Indo pacific humpbacked dolphin"],["HLturAdu2","Indo pacific bottlenose dolphin"],["HLturAdu1","Indo pacific bottlenose dolphin"],["HLturTru4","common bottlenose dolphin"],["turTru2","common bottlenose dolphin"],["HLturTru3","common bottlenose dolphin"],["HLmonMon1","narwhal"],["HLneoAsi1","Yangtze finless porpoise"],["HLphoSin1","vaquita"],["HLphoPho2","harbor porpoise"],["HLphoPho1","harbor porpoise"],["HLponBla1","franciscana"],["HLlniGeo1","boutu"],["HLmesBid1","Sowerby's beaked whale"],["HLzipCav1","Cuvier's beaked whale"],["HLkogBre1","pygmy sperm whale"],["phyCat1","sperm whale"],["HLphyCat2","sperm whale"],["balAcu1","minke whale"],["HLbalBon1","Antarctic minke whale"],["HLbalPhy1","Fin whale"],["HLmegNov1","humpback whale"],["HLbalMus1","blue whale"],["HLbalEde1","pygmy Bryde's whale"],["HLescRob1","grey whale"],["HLeubGla1","North Atlantic right whale"],["HLeubJap1","North Pacific right whale"],["HLbalMys1","bowhead whale"],["HLhipAmp3","hippopotamus"],["HLhipAmp1","hippopotamus"],["HLcatWag1","Chacoan peccary"],["susScr11","pig"],["HLcamFer3","Wild Bactrian camel"],["HLcamDro2","Arabian camel"],["HLcamBac1","Bactrian camel"],["HLlamGla1","llama"],["HLlamGuaCac1","guanaco"],["HLlamGlaCha1","llama"],["HLvicPacHua3","Huacaya alpaca"],["HLvicVicMen1","Vicugna mensalis"],["vicPac2","alpaca"],["HLtapTer1","Brazilian tapir"],["HLtapInd1","Asiatic tapir"],["HLtapInd2","Asiatic tapir"],["HLrhiUni1","greater Indian rhinoceros"],["HLdicSum1","Sumatran rhinoceros"],["HLdicBic1","black rhinoceros"],["cerSim1","southern white rhinoceros"],["HLcerSimCot1","northern white rhinoceros"],["equPrz1","Przewalski's horse"],["equCab3","horse"],["HLequQuaBoe1","Grant's zebra"],["HLequAsi1","ass"],["HLequAsiAsi2","donkey"],["HLspiGra1","western spotted skunk"],["HLailFul2","lesser panda"],["HLtaxTax1","North American badger"],["HLmelCap1","ratel"],["HLmarZib1","sable"],["HLgulGul1","wolverine"],["HLpteBra2","giant otter"],["HLpteBra1","giant otter"],["HLlonCan1","Northern American river otter"],["HLlutLut1","Eurasian river otter"],["enhLutNer1","Southern sea otter"],["enhLutKen1","Northern sea otter"],["HLneoVis1","American mink"],["HLmusErm1","ermine"],["HLmusPut1","European polecat"],["HLmusFur2","domestic ferret"],["HLpotFla1","kinkajou"],["HLnasNar1","white nosed coati"],["HLbasSum1","cacomistle"],["HLproLot1","raccoon"],["HLeriBar1","bearded seal"],["HLhalGry1","gray seal"],["HLphoVit1","harbor seal"],["neoSch1","Hawaiian monk seal"],["lepWed1","Weddell seal"],["HLmirAng2","Northern elephant seal"],["HLmirLeo1","Southern elephant seal"],["odoRosDiv1","Pacific walrus"],["HLodoRos1","walrus"],["HLcalUrs1","northern fur seal"],["HLarcGaz2","antarctic fur seal"],["HLzalCal1","California sea lion"],["HLeumJub1","Steller sea lion"],["HLailMel2","giant panda"],["HLursThi1","Asian black bear"],["HLursAme1","American black bear"],["HLursAme2","American black bear"],["ursMar1","polar bear"],["HLursArc1","grizzly bear"],["HLvulVul1","red fox"],["HLvulLag1","Arctic fox"],["HLlycPic2","African hunting dog"],["HLlycPic3","African hunting dog"],["canFam4","dog"],["HLcanLupDin1","dingo"],["canFam5","dog"],["HLaciJub2","cheetah"],["HLpriBen1","Amur leopard cat"],["HLlynCan1","Canada lynx"],["HLlynPar1","Spanish lynx"],["HLpumYag1","jaguarundi"],["felCat9","domestic cat"],["HLfelNig1","black footed cat"],["HLpumCon1","puma"],["HLneoNeb1","clouded leopard"],["panTig1","Amur tiger"],["HLpanPar1","leopard"],["HLpanOnc1","jaguar"],["HLpanOnc2","jaguar"],["HLpanLeo1","lion"],["HLparHer1","Asian palm civet"],["HLhyaHya1","striped hyena"],["HLcroCro1","spotted hyena"],["HLcryFer2","fossa"],["HLsurSur2","meerkat"],["HLsurSur1","meerkat"],["HLhelPar1","dwarf mongoose"],["HLmunMug1","banded mongoose"],["HLmanTri1","tree pangolin"],["HLphaTri2","tree pangolin"],["manPen1","Chinese pangolin"],["HLmanPen2","Chinese pangolin"],["HLmanJav2","Malayan pangolin"],["HLmanJav1","Malayan pangolin"],["HLmurAurFea1","Fea's tube-nosed bat"],["HLmyoSep1","Northern long eared myotis"],["myoBra1","Brandt's bat"],["myoLuc2","little brown bat"],["HLmyoLuc1","little brown bat"],["myoDav1","David's myotis"],["HLmyoMyo6","greater mouse eared bat"],["HLnycHum2","evening bat"],["HLaeoCin1","hoary bat"],["HLlasBor1","red bat"],["eptFus1","big brown bat"],["HLantPal1","pallid bat"],["HLpipKuh2","Kuhl's pipistrelle"],["HLpipPip1","common pipistrelle"],["HLpipPip2","common pipistrelle"],["HLminSch1","Schreibers' long fingered bat"],["HLminNat1","Natal long-fingered bat"],["HLmolMol2","Pallas's mastiff bat"],["HLtadBra1","Brazilian free tailed bat"],["HLmacCal1","California big eared bat"],["HLmicHir1","hairy big-eared bat"],["HLdesRot2","common vampire bat"],["HLphyDis3","pale spear nosed bat"],["HLtonSau1","stripe headed round eared bat"],["HLcarPer3","Seba's short tailed bat"],["HLstuHon1","Honduran yellow shouldered bat"],["HLartJam1","Jamaican fruit eating bat"],["HLartJam2","Jamaican fruit eating bat"],["HLanoCau1","tailed tailless bat"],["HLlepYer1","lesser long nosed bat"],["ptePar1","Parnell's mustached bat"],["HLmorBla1","Antillean ghost faced bat"],["HLnocLep1","greater bulldog bat"],["HLcynBra1","lesser short nosed fruit bat"],["HLmacSob1","long tongued fruit bat"],["HLeidDup1","Malagasy straw colored fruit bat"],["HLeidHel2","straw colored fruit bat"],["pteAle1","black flying fox"],["HLptePse1","Bonin flying fox"],["HLpteVam2","large flying fox"],["HLpteGig1","Indian flying fox"],["HLpteRuf1","Malagasy flying fox"],["HLeonSpe1","lesser dawn bat"],["HLrouLes1","Leschenault's rousette"],["HLrouAeg4","Egyptian rousette"],["HLrouMad1","Madagascan rousette"],["HLcraTho1","hog nosed bat"],["HLmegLyr2","Indian false vampire"],["HLrhiFer5","greater horseshoe bat"],["HLrhiSin1","Chinese rufous horseshoe bat"],["HLhipGal1","Cantor's roundleaf bat"],["HLhipArm1","great roundleaf bat"],["HLsolPar1","Hispaniolan solenodon"],["eriEur2","western European hedgehog"],["sorAra2","European shrew"],["HLuroGra1","gracile shrew mole"],["HLscaAqu1","eastern mole"],["HLtalOcc1","Iberian mole"],["conCri1","star nosed mole"],["echTel2","small Madagascar hedgehog"],["HLmicTal1","Talazac's shrew tenrec"],["eleEdw1","Cape elephant shrew"],["oryAfe1","aardvark"],["chrAsi1","Cape golden mole"],["HLhetBru1","yellow spotted hyrax"],["HLproCap3","Cape rock hyrax"],["triMan1","Florida manatee"],["HLhydGig1","Steller's sea cow"],["HLdugDug1","dugong"],["HLeleMax1","Asiatic elephant"],["HLloxAfr4","African savanna elephant"],["dasNov3","nine banded armadillo"],["HLtolMat1","Southern three banded armadillo"],["HLtamTet1","southern tamandua"],["HLmyrTri1","giant anteater"],["HLchoHof3","Hoffmann's two fingered sloth"],["HLchoDid2","southern two toed sloth"],["HLchoDid1","southern two toed sloth"],["HLphaCin1","koala"],["HLvomUrs1","common wombat"],["HLphaGym1","ground cuscus"],["HLtriVul1","common brushtail"],["HLmacFul1","western gray kangaroo"],["HLmacGig1","eastern gray kangaroo"],["HLospRuf1","red kangaroo"],["HLnotEug3","tammar wallaby"],["macEug2","tammar wallaby"],["HLgymLea1","Leadbeater's possum"],["HLpseOcc1","Western ringtail oppossum"],["HLpseCor1","golden ringtail possum"],["HLpseCup1","coppery ringtail possum"],["HLthyCyn1","Tasmanian wolf"],["HLantFla1","yellow footed antechinus"],["HLsarHar2","Tasmanian devil"],["HLdidVir1","North American opossum"],["monDom5","gray short tailed opossum"],["HLgraAgi1","agile gracile mouse Opossum"],["HLtacAcu1","Australian echidna"],["HLornAna3","platypus"]];
+const SPECIES_NAME=new Map(SPECIES);
+
+/* ============================ state ============================ */
+const V={chrom:'chr6',start:16299111,end:16761491,mode:'gencode',species:'rheMac10',chromSize:170805979};
+let token=0, hover=null, lastPayload=null;
+
+const $=id=>document.getElementById(id);
+const cv=$('cv'), ctx=cv.getContext('2d');
+const css=p=>getComputedStyle(document.documentElement).getPropertyValue(p).trim();
+const fmt=n=>n.toLocaleString('en-US');
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function spanLabel(n){
+  if(n>=1e6) return (n/1e6).toFixed(n>=1e7?1:2)+' Mb';
+  if(n>=1e3) return (n/1e3).toFixed(n>=1e5?1:2)+' kb';
+  return n+' bp';
+}
+function setMsg(t){ if(t){$('msg').textContent=t;$('overlay').hidden=false} else $('overlay').hidden=true }
+function setRegime(t){ $('regime').textContent=t }
+function updateNet(){ $('netOut').textContent=`${(NET.bytes/1024).toFixed(1)} KiB · ${NET.reqs} requests` }
+function syncLocus(){
+  $('locusInput').value=`${V.chrom}:${fmt(V.start+1)}-${fmt(V.end)}`;
+  $('spanOut').textContent=`${spanLabel(V.end-V.start)} · ${((V.end-V.start)/geom().w).toFixed(2)} bp/px`;
+}
+
+/* ============================ canvas geometry ============================ */
+const RULER=26;
+function geom(){
+  const w=cv.clientWidth||900;
+  return {w, h:cv.clientHeight||360, dpr:window.devicePixelRatio||1};
+}
+function sizeCanvas(){
+  const rect=cv.parentElement.getBoundingClientRect();
+  const w=Math.max(320,Math.floor(rect.width));
+  const h=V.mode==='multiz'?420:360;
+  const dpr=window.devicePixelRatio||1;
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  cv.width=Math.floor(w*dpr); cv.height=Math.floor(h*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {w,h};
+}
+const x2bp=px=>V.start+(px/ (cv.clientWidth||900))*(V.end-V.start);
+const bp2x=bp=>((bp-V.start)/(V.end-V.start))*(cv.clientWidth||900);
+
+/* ============================ ruler ============================ */
+function niceStep(span,w){
+  const target=span/Math.max(4,Math.floor(w/110));
+  const mag=Math.pow(10,Math.floor(Math.log10(target)));
+  for(const m of [1,2,5,10]) if(mag*m>=target) return mag*m;
+  return mag*10;
+}
+function drawRuler(w){
+  const span=V.end-V.start;
+  ctx.fillStyle=css('--panel'); ctx.fillRect(0,0,w,RULER);
+  ctx.strokeStyle=css('--rule'); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,RULER-0.5); ctx.lineTo(w,RULER-0.5); ctx.stroke();
+  const step=niceStep(span,w);
+  const first=Math.ceil(V.start/step)*step;
+  ctx.fillStyle=css('--ink-faint');
+  ctx.font='500 10px "IBM Plex Mono",monospace';
+  ctx.textBaseline='middle';
+  for(let p=first;p<V.end;p+=step){
+    const x=bp2x(p);
+    ctx.strokeStyle=css('--rule');
+    ctx.beginPath(); ctx.moveTo(x+0.5,RULER-7); ctx.lineTo(x+0.5,RULER-1); ctx.stroke();
+    const lab=step>=1e6?(p/1e6).toFixed(2)+'M':step>=1e3?(p/1e3).toFixed(step>=1e5?0:1)+'k':String(p);
+    ctx.textAlign=x<34?'left':(x>w-34?'right':'center');
+    ctx.fillText(lab,clamp(x,2,w-2),RULER/2-2);
+  }
+}
+function clearPane(w,h){
+  ctx.fillStyle=css('--panel'); ctx.fillRect(0,0,w,h);
+}
+const BASECOL=()=>({A:css('--base-a'),C:css('--base-c'),G:css('--base-g'),T:css('--base-t'),N:css('--base-n')});
+
+/* ============================ mode: sequence ============================ */
+async function renderSequence(w,h,tk){
+  const span=V.end-V.start, body=h-RULER, top=RULER;
+  const col=BASECOL();
+  if(span<=w/6.5){
+    const seq=await SRC.twobit.sequence(V.chrom,V.start,V.end);
+    if(tk!==token) return;
+    const pw=w/span;
+    ctx.font=`600 ${Math.min(15,Math.max(9,pw*0.78))}px "IBM Plex Mono",monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(let i=0;i<seq.length;i++){
+      const b=seq[i], x=i*pw;
+      ctx.fillStyle=col[b]||col.N;
+      ctx.globalAlpha=0.13; ctx.fillRect(x,top+body/2-20,pw-0.5,40); ctx.globalAlpha=1;
+      ctx.fillText(b,x+pw/2,top+body/2);
+    }
+    setRegime(`base letters · ${span} bp`);
+    lastPayload={kind:'seq',seq};
+    return;
+  }
+  if(span<=400000){
+    const seq=await SRC.twobit.sequence(V.chrom,V.start,V.end);
+    if(tk!==token) return;
+    const pw=w/span;
+    if(pw>=1){
+      for(let i=0;i<seq.length;i++){
+        ctx.fillStyle=col[seq[i]]||col.N;
+        ctx.fillRect(i*pw,top+body/2-28,Math.max(pw,0.6),56);
+      }
+      setRegime(`per-base color · ${spanLabel(span)}`);
+    }else{
+      drawGC(seq,V.start,w,top,body,span);
+      setRegime(`GC content · ${spanLabel(span)} · 1 bin ≈ ${Math.round(span/w)} bp`);
+    }
+    lastPayload={kind:'seq',seq};
+    return;
+  }
+  // very wide: strided sampling
+  const bins=Math.min(900,Math.floor(w));
+  const winSize=256, step=Math.floor(span/bins);
+  const vals=new Float32Array(bins).fill(NaN);
+  const batch=[];
+  for(let i=0;i<bins;i++) batch.push(i);
+  const CONC=8; let idx=0;
+  async function worker(){
+    while(idx<batch.length){
+      const i=batch[idx++];
+      const s=V.start+i*step;
+      const sub=await SRC.twobit.sequence(V.chrom,s,Math.min(s+winSize,V.end));
+      if(tk!==token) return;
+      let gc=0,n=0;
+      for(const c of sub){ if(c==='G'||c==='C'){gc++;n++} else if(c==='A'||c==='T') n++; }
+      vals[i]=n?gc/n:NaN;
+    }
+  }
+  setMsg('Sampling GC across the window…');
+  await Promise.all(Array.from({length:CONC},worker));
+  if(tk!==token) return;
+  setMsg(null);
+  clearPane(w,h); drawRuler(w);
+  drawProfile(vals,w,top,body,0,1,css('--accent'),0.5);
+  setRegime(`GC content, sampled · ${winSize} bp every ${spanLabel(step)}`);
+  lastPayload={kind:'gc',vals,step,winSize};
+}
+function drawGC(seq,offset,w,top,body,span){
+  const bins=Math.floor(w), per=span/bins;
+  const vals=new Float32Array(bins);
+  for(let i=0;i<bins;i++){
+    const s=Math.floor(i*per), e=Math.min(seq.length,Math.floor((i+1)*per));
+    let gc=0,n=0;
+    for(let p=s;p<e;p++){const c=seq[p]; if(c==='G'||c==='C'){gc++;n++} else if(c==='A'||c==='T') n++}
+    vals[i]=n?gc/n:NaN;
+  }
+  drawProfile(vals,w,top,body,0,1,css('--accent'),0.5);
+}
+function drawProfile(vals,w,top,body,lo,hi,color,midline){
+  const n=vals.length, pw=w/n;
+  const y=v=>top+body-((v-lo)/(hi-lo))*body;
+  if(midline!==undefined){
+    ctx.strokeStyle=css('--rule'); ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(0,y(midline)); ctx.lineTo(w,y(midline)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.fillStyle=color; ctx.globalAlpha=0.22;
+  ctx.beginPath(); ctx.moveTo(0,top+body);
+  for(let i=0;i<n;i++){ if(!isNaN(vals[i])) ctx.lineTo(i*pw+pw/2,y(clamp(vals[i],lo,hi))) }
+  ctx.lineTo(w,top+body); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+  ctx.strokeStyle=color; ctx.lineWidth=1.2; ctx.beginPath();
+  let started=false;
+  for(let i=0;i<n;i++){
+    if(isNaN(vals[i])){started=false;continue}
+    const px=i*pw+pw/2, py=y(clamp(vals[i],lo,hi));
+    if(!started){ctx.moveTo(px,py);started=true} else ctx.lineTo(px,py);
+  }
+  ctx.stroke();
+  ctx.fillStyle=css('--ink-faint'); ctx.font='500 10px "IBM Plex Mono",monospace';
+  ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillText(hi.toFixed(2),4,top+3);
+  ctx.textBaseline='bottom';
+  ctx.fillText(lo.toFixed(2),4,top+body-3);
+}
+
+/* ============================ mode: GENCODE ============================ */
+const ROW_H=22, GLYPH=11;
+async function renderGencode(w,h,tk){
+  const span=V.end-V.start, top=RULER, body=h-RULER;
+  if(span>8000000){
+    const z=await SRC.gencode.zoomValues(V.chrom,V.start,V.end,Math.floor(w));
+    if(tk!==token) return;
+    clearPane(w,h); drawRuler(w);
+    if(!z||!z.bins.length){ setRegime('no annotation density at this scale'); return }
+    const n=Math.floor(w), vals=new Float32Array(n).fill(0);
+    const per=span/n;
+    for(const b of z.bins){
+      const i0=clamp(Math.floor((b.start-V.start)/per),0,n-1);
+      const i1=clamp(Math.floor((b.end-V.start)/per),0,n-1);
+      for(let i=i0;i<=i1;i++) vals[i]+=b.validCount;
+    }
+    const mx=Math.max(1,...vals);
+    drawProfile(vals,w,top,body,0,mx,css('--accent'));
+    setRegime(`transcript density · reduction ${spanLabel(z.reductionLevel)}`);
+    lastPayload={kind:'density',vals,max:mx};
+    return;
+  }
+  const feats=await SRC.gencode.bedFeatures(V.chrom,V.start,V.end,30000);
+  if(tk!==token) return;
+  clearPane(w,h); drawRuler(w);
+  const tx=feats.map(parseGenePred);
+  lastPayload={kind:'gencode',tx};
+  if(!tx.length){ setRegime('no GENCODE transcripts in view'); return }
+
+  ctx.font='500 11px "Archivo",sans-serif';
+  const probe=packRows(tx.map(t=>({...t,px0:bp2x(t.start),px1:bp2x(t.end),
+    label:t.gene+(t.strand==='-'?' ◂':' ▸')})),w,true);
+  const dense=probe.length>Math.floor((body-14)/11);
+  if(dense){
+    // collapse to gene extents, one row per packed lane, no labels
+    const genes=new Map();
+    for(const t of tx){
+      const g=genes.get(t.gene);
+      if(g){g.start=Math.min(g.start,t.start);g.end=Math.max(g.end,t.end);g.n++}
+      else genes.set(t.gene,{gene:t.gene,start:t.start,end:t.end,strand:t.strand,n:1});
+    }
+    const items=[...genes.values()].sort((a,b)=>a.start-b.start);
+    const lanes=packRows(items.map(g=>({...g,px0:bp2x(g.start),px1:bp2x(g.end)})),w,false);
+    drawLanes(lanes,top,body,false);
+    setRegime(`${items.length} genes · ${tx.length} transcripts · collapsed`);
+    lastPayload={kind:'gencode',tx,collapsed:items};
+    return;
+  }
+  const laid=tx.map(t=>({...t,px0:bp2x(t.start),px1:bp2x(t.end),
+    label:t.gene+(t.strand==='-'?' ◂':' ▸')}));
+  const lanes=packRows(laid,w,true);
+  const rowH=Math.floor((body-14)/Math.max(1,lanes.length));
+  drawLanes(lanes,top,body,true,clamp(rowH,11,ROW_H));
+  setRegime(`${tx.length} transcripts · ${lanes.length} rows`);
+}
+function packRows(items,w,withLabel){
+  const rows=[];
+  ctx.font='500 11px "Archivo",sans-serif';
+  for(const it of items){
+    const lw=withLabel&&it.label?ctx.measureText(it.label).width+8:0;
+    const a=it.px0-(lw&&it.px0>lw+4?lw:0), b=Math.max(it.px1,it.px0+2)+(lw&&it.px0<=lw+4?lw:0);
+    it._a=a; it._b=b;
+    let placed=false;
+    for(const r of rows){ if(a>r.max+6){ r.items.push(it); r.max=b; placed=true; break } }
+    if(!placed) rows.push({items:[it],max:b});
+    if(rows.length>60) break;
+  }
+  return rows;
+}
+function drawLanes(rows,top,body,detail,rowH){
+  const col=css('--accent');
+  const RH=rowH||ROW_H;
+  const G=Math.max(7,Math.min(GLYPH,RH-5));
+  for(let ri=0;ri<rows.length;ri++){
+    const y=top+8+ri*RH;
+    if(y+G>top+body) break;
+    const mid=y+G/2;
+    for(const it of rows[ri].items){
+      const x0=Math.max(-2,it.px0), x1=Math.min(cv.clientWidth+2,it.px1);
+      ctx.strokeStyle=col; ctx.lineWidth=1.1;
+      ctx.beginPath(); ctx.moveTo(x0,mid+0.5); ctx.lineTo(x1,mid+0.5); ctx.stroke();
+      // strand arrows along the intron line
+      if(x1-x0>26){
+        ctx.fillStyle=col; ctx.globalAlpha=.75;
+        ctx.font='9px "IBM Plex Mono",monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const dir=it.strand==='-'?'<':'>';
+        for(let x=x0+14;x<x1-6;x+=34) ctx.fillText(dir,x,mid);
+        ctx.globalAlpha=1;
+      }
+      if(detail&&it.exons){
+        for(const ex of it.exons){
+          const ex0=bp2x(ex.start), ex1=bp2x(ex.end);
+          if(ex1<-2||ex0>cv.clientWidth+2) continue;
+          const cds0=Math.max(ex.start,it.thickStart), cds1=Math.min(ex.end,it.thickEnd);
+          const wpx=Math.max(1.2,ex1-ex0);
+          ctx.fillStyle=col; ctx.globalAlpha=.55;
+          ctx.fillRect(ex0,mid-G*0.26,wpx,G*0.52);   // UTR height
+          ctx.globalAlpha=1;
+          if(cds1>cds0){
+            const c0=bp2x(cds0), c1=bp2x(cds1);
+            ctx.fillRect(c0,mid-G/2,Math.max(1.2,c1-c0),G); // CDS full height
+          }
+        }
+      }else{
+        ctx.fillStyle=col; ctx.globalAlpha=.8;
+        ctx.fillRect(x0,mid-G*0.3,Math.max(1.5,x1-x0),G*0.6); ctx.globalAlpha=1;
+      }
+      if(detail&&it.label){
+        ctx.fillStyle=css('--ink-dim');
+        ctx.font=`500 ${Math.max(9,Math.min(11,RH-9))}px "Archivo",sans-serif`;
+        ctx.textBaseline='middle';
+        if(it.px0>ctx.measureText(it.label).width+8){ ctx.textAlign='right'; ctx.fillText(it.label,it.px0-5,mid) }
+        else { ctx.textAlign='left'; ctx.fillText(it.label,Math.max(2,it.px1+5),mid) }
+      }
+    }
+  }
+}
+
+/* ============================ mode: conservation ============================ */
+async function renderCons(w,h,tk,which){
+  const src=which==='phylop'?SRC.phylop:SRC.phastcons;
+  const span=V.end-V.start, top=RULER, body=h-RULER;
+  const hdr=await src.header();
+  if(tk!==token) return;
+  const isPhylo=which==='phylop';
+  const lo=isPhylo?-4:0, hi=isPhylo?4:1;
+
+  if(span<=w*4){
+    const vals=await src.wigValues(V.chrom,V.start,V.end);
+    if(tk!==token) return;
+    clearPane(w,h); drawRuler(w);
+    drawBars(vals,w,top,body,lo,hi,isPhylo);
+    setRegime(`base-level values · ${fmt(vals.length)} positions`);
+    lastPayload={kind:'wig',vals,which};
+    return;
+  }
+  const z=await src.zoomValues(V.chrom,V.start,V.end,Math.floor(w));
+  if(tk!==token) return;
+  clearPane(w,h); drawRuler(w);
+  if(!z||!z.bins.length){
+    const vals=await src.wigValues(V.chrom,V.start,V.end);
+    if(tk!==token) return;
+    drawBars(vals,w,top,body,lo,hi,isPhylo);
+    setRegime(`base-level values · ${fmt(vals.length)} positions`);
+    lastPayload={kind:'wig',vals,which};
+    return;
+  }
+  drawEnvelope(z.bins,w,top,body,lo,hi,isPhylo);
+  setRegime(`summary bins · reduction ${spanLabel(z.reductionLevel)} · ${z.bins.length} bins`);
+  lastPayload={kind:'zoom',bins:z.bins,which,reduction:z.reductionLevel};
+}
+function consY(top,body,lo,hi){ return v=>top+body-((clamp(v,lo,hi)-lo)/(hi-lo))*body }
+function drawBars(vals,w,top,body,lo,hi,signed){
+  const y=consY(top,body,lo,hi), zeroY=y(signed?0:lo);
+  ctx.strokeStyle=css('--rule'); ctx.beginPath();
+  ctx.moveTo(0,zeroY+0.5); ctx.lineTo(w,zeroY+0.5); ctx.stroke();
+  const pos=css('--cons-pos'), neg=css('--cons-neg');
+  for(const v of vals){
+    const x0=bp2x(v.start), x1=bp2x(v.end);
+    const bw=Math.max(0.7,x1-x0), py=y(v.value);
+    ctx.fillStyle=v.value<0&&signed?neg:pos;
+    ctx.fillRect(x0,Math.min(py,zeroY),bw,Math.max(0.8,Math.abs(zeroY-py)));
+  }
+  axisLabels(top,body,lo,hi);
+}
+function drawEnvelope(bins,w,top,body,lo,hi,signed){
+  const y=consY(top,body,lo,hi), zeroY=y(signed?0:lo);
+  ctx.strokeStyle=css('--rule'); ctx.beginPath();
+  ctx.moveTo(0,zeroY+0.5); ctx.lineTo(w,zeroY+0.5); ctx.stroke();
+  const pos=css('--cons-pos'), neg=css('--cons-neg');
+  for(const b of bins){
+    const x0=bp2x(b.start), x1=bp2x(b.end), bw=Math.max(0.7,x1-x0);
+    ctx.globalAlpha=.3; ctx.fillStyle=pos;
+    ctx.fillRect(x0,y(b.max),bw,Math.max(0.7,y(b.min)-y(b.max)));
+    ctx.globalAlpha=1;
+    const py=y(b.mean);
+    ctx.fillStyle=b.mean<0&&signed?neg:pos;
+    ctx.fillRect(x0,Math.min(py,zeroY),bw,Math.max(0.8,Math.abs(zeroY-py)));
+  }
+  axisLabels(top,body,lo,hi);
+}
+function axisLabels(top,body,lo,hi){
+  ctx.fillStyle=css('--ink-faint'); ctx.font='500 10px "IBM Plex Mono",monospace';
+  ctx.textAlign='left';
+  ctx.textBaseline='top'; ctx.fillText(hi.toFixed(1),4,top+3);
+  ctx.textBaseline='bottom'; ctx.fillText(lo.toFixed(1),4,top+body-3);
+}
+
+/* ============================ mode: Multiz ============================ */
+async function renderMultiz(w,h,tk){
+  const span=V.end-V.start, top=RULER, body=h-RULER;
+  const sp=V.species, spName=SPECIES_NAME.get(sp)||sp;
+
+  if(span<=4000){
+    const feats=await SRC.maf.bedFeatures(V.chrom,V.start,V.end,400,12*1024*1024);
+    if(tk!==token) return;
+    clearPane(w,h); drawRuler(w);
+    const blocks=feats.map(parseMaf);
+    lastPayload={kind:'maf',blocks,species:sp};
+    if(!blocks.length){ setRegime('no alignment blocks here'); return }
+    // map reference coordinate -> {ref, qry} for the chosen species
+    const refChar=new Map(), qryChar=new Map();
+    let covered=0;
+    for(const b of blocks){
+      const ref=b.rows.find(r=>r.db==='hg38'); if(!ref) continue;
+      const qry=b.rows.find(r=>r.db===sp);
+      let pos=ref.start;
+      for(let i=0;i<ref.text.length;i++){
+        const rc=ref.text[i];
+        if(rc==='-') continue;
+        if(pos>=V.start&&pos<V.end){
+          refChar.set(pos,rc.toUpperCase());
+          if(qry){ qryChar.set(pos,qry.text[i]?qry.text[i].toUpperCase():'-'); covered++; }
+        }
+        pos++;
+      }
+    }
+    drawAlignment(w,top,body,refChar,qryChar,sp,spName,span);
+    setRegime(`${blocks.length} MAF block${blocks.length>1?'':''} · ${spName} aligned over ${fmt(covered)} bp`);
+    return;
+  }
+
+  if(span<=600000){
+    const feats=await SRC.mafsum.bedFeatures(V.chrom,V.start,V.end,60000,8*1024*1024);
+    if(tk!==token) return;
+    clearPane(w,h); drawRuler(w);
+    const mine=feats.filter(f=>f.fields[0]===sp);
+    lastPayload={kind:'mafsum',feats:mine,species:sp};
+    if(!mine.length){
+      setRegime(`${spName}: no alignment summary in this window`);
+      ctx.fillStyle=css('--ink-faint'); ctx.font='500 12px "Archivo",sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(`No ${spName} alignment recorded across this interval.`,w/2,top+body/2);
+      return;
+    }
+    const zeroY=top+body;
+    ctx.strokeStyle=css('--rule'); ctx.beginPath(); ctx.moveTo(0,zeroY-0.5); ctx.lineTo(w,zeroY-0.5); ctx.stroke();
+    for(const f of mine){
+      const x0=bp2x(f.start), x1=bp2x(f.end), bw=Math.max(0.7,x1-x0);
+      const score=clamp(parseFloat(f.fields[1])||0,0,1);
+      ctx.fillStyle=css('--cons-pos'); ctx.globalAlpha=0.25+0.75*score;
+      ctx.fillRect(x0,top+body-score*body,bw,score*body);
+    }
+    ctx.globalAlpha=1;
+    axisLabels(top,body,0,1);
+    setRegime(`${spName} · alignment identity, ${fmt(mine.length)} summary blocks`);
+    return;
+  }
+
+  const z=await SRC.mafsum.zoomValues(V.chrom,V.start,V.end,Math.floor(w));
+  if(tk!==token) return;
+  clearPane(w,h); drawRuler(w);
+  if(!z||!z.bins.length){ setRegime('no alignment coverage at this scale'); return }
+  const n=Math.floor(w), vals=new Float32Array(n).fill(NaN), per=span/n;
+  for(const b of z.bins){
+    const i=clamp(Math.floor((b.start-V.start)/per),0,n-1);
+    vals[i]=isNaN(vals[i])?b.mean:Math.max(vals[i],b.mean);
+  }
+  drawProfile(vals,w,top,body,0,1,css('--cons-pos'));
+  ctx.fillStyle=css('--ink-faint'); ctx.font='500 11px "Archivo",sans-serif';
+  ctx.textAlign='right'; ctx.textBaseline='top';
+  ctx.fillText('all 470 species pooled — zoom in past 600 kb for '+spName,cv.clientWidth-6,top+4);
+  setRegime(`alignment density, all species · reduction ${spanLabel(z.reductionLevel)}`);
+  lastPayload={kind:'mafzoom',bins:z.bins};
+}
+function drawAlignment(w,top,body,refChar,qryChar,sp,spName,span){
+  const col=BASECOL(), pw=w/span;
+  const refY=top+body*0.26, qryY=top+body*0.62;
+  const letters=pw>=6.5;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`600 ${Math.min(14,Math.max(8,pw*0.76))}px "IBM Plex Mono",monospace`;
+  // row labels
+  ctx.save();
+  ctx.font='600 10px "Archivo",sans-serif'; ctx.textAlign='left'; ctx.fillStyle=css('--ink-faint');
+  ctx.fillText('hg38 · human',4,top+body*0.26-26);
+  ctx.fillText(sp+' · '+spName,4,top+body*0.62-26);
+  ctx.restore();
+  ctx.font=`600 ${Math.min(14,Math.max(8,pw*0.76))}px "IBM Plex Mono",monospace`;
+  for(let p=V.start;p<V.end;p++){
+    const x=bp2x(p), rc=refChar.get(p);
+    if(rc===undefined) continue;
+    if(letters){
+      ctx.fillStyle=col[rc]||col.N; ctx.fillText(rc,x+pw/2,refY);
+    }else{
+      ctx.fillStyle=col[rc]||col.N; ctx.fillRect(x,refY-16,Math.max(pw,0.7),32);
+    }
+    const qc=qryChar.get(p);
+    if(qc===undefined) continue;
+    if(qc==='-'){
+      ctx.strokeStyle=css('--rule'); ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(x,qryY); ctx.lineTo(x+Math.max(pw,1),qryY); ctx.stroke();
+    }else if(qc===rc){
+      if(letters){ ctx.fillStyle=css('--ink-faint'); ctx.globalAlpha=.55; ctx.fillText('·',x+pw/2,qryY); ctx.globalAlpha=1 }
+      else { ctx.fillStyle=css('--ink-faint'); ctx.globalAlpha=.3; ctx.fillRect(x,qryY-16,Math.max(pw,0.7),32); ctx.globalAlpha=1 }
+    }else{
+      if(letters){ ctx.fillStyle=col[qc]||col.N; ctx.fillText(qc,x+pw/2,qryY) }
+      else { ctx.fillStyle=col[qc]||col.N; ctx.fillRect(x,qryY-16,Math.max(pw,0.7),32) }
+    }
+  }
+}
+
+/* ============================ legend ============================ */
+function renderLegend(){
+  const L=$('legend'); L.innerHTML='';
+  const add=(label,color,cls)=>{
+    const d=document.createElement('div'); d.className='key';
+    const s=document.createElement('span'); s.className='sw'+(cls?' '+cls:''); s.style.background=color;
+    d.appendChild(s); d.appendChild(document.createTextNode(label)); L.appendChild(d);
+  };
+  const m=V.mode;
+  if(m==='seq'||m==='multiz'){ for(const b of ['A','C','G','T']) add(b,css('--base-'+b.toLowerCase())) }
+  if(m==='multiz'){ add('match',css('--ink-faint')); add('gap',css('--rule'),'line') }
+  if(m==='gencode'){ add('CDS',css('--accent')); add('UTR / intron',css('--accent')) }
+  if(m==='phylop'){ add('conserved',css('--cons-pos')); add('accelerated',css('--cons-neg')) }
+  if(m==='phastcons'){ add('conservation 0–1',css('--cons-pos')) }
+}
+
+/* ============================ render dispatch ============================ */
+let pending=null;
+async function render(){
+  const tk=++token;
+  const {w,h}=sizeCanvas();
+  clearPane(w,h); drawRuler(w);
+  syncLocus(); renderLegend();
+  setMsg('Reading…');
+  try{
+    if(V.mode==='seq') await renderSequence(w,h,tk);
+    else if(V.mode==='gencode') await renderGencode(w,h,tk);
+    else if(V.mode==='phylop') await renderCons(w,h,tk,'phylop');
+    else if(V.mode==='phastcons') await renderCons(w,h,tk,'phastcons');
+    else if(V.mode==='multiz') await renderMultiz(w,h,tk);
+    if(tk!==token) return;
+    setMsg(null);
+  }catch(err){
+    if(tk!==token) return;
+    setMsg('Could not read that interval: '+err.message);
+    setRegime('error');
+  }
+  updateNet();
+  $('dataNote').textContent=exportHint();
+  $('copyBtn').disabled=true; $('dlBtn').disabled=true;
+}
+let rafPending=false;
+function scheduleRender(){
+  if(rafPending) return;
+  rafPending=true;
+  requestAnimationFrame(()=>{rafPending=false;render()});
+}
+
+/* ============================ navigation ============================ */
+function setView(start,end){
+  const span=Math.max(40,Math.round(end-start));
+  let s=Math.round(start), e=s+span;
+  if(s<0){s=0;e=span}
+  if(e>V.chromSize){e=V.chromSize;s=Math.max(0,e-span)}
+  V.start=s; V.end=e;
+  scheduleRender();
+}
+function zoomBy(factor,anchorFrac=0.5){
+  const span=V.end-V.start, anchor=V.start+span*anchorFrac;
+  const ns=Math.max(40,Math.min(V.chromSize,span*factor));
+  setView(anchor-ns*anchorFrac,anchor-ns*anchorFrac+ns);
+}
+function panBy(frac){ const d=(V.end-V.start)*frac; setView(V.start+d,V.end+d) }
+
+$('zoomIn').onclick=()=>zoomBy(1/2.2);
+$('zoomOut').onclick=()=>zoomBy(2.2);
+$('panL').onclick=()=>panBy(-0.4);
+$('panR').onclick=()=>panBy(0.4);
+
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  zoomBy(e.deltaY>0?1.22:1/1.22,(e.clientX-r.left)/r.width);
+},{passive:false});
+
+let drag=null;
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId);
+  drag={x:e.clientX,start:V.start,end:V.end,moved:false};
+});
+cv.addEventListener('pointermove',e=>{
+  const r=cv.getBoundingClientRect();
+  if(drag){
+    const dx=e.clientX-drag.x;
+    if(Math.abs(dx)>2) drag.moved=true;
+    const bpPerPx=(drag.end-drag.start)/r.width;
+    setView(drag.start-dx*bpPerPx,drag.end-dx*bpPerPx);
+    $('tip').hidden=true;
+    return;
+  }
+  showTip(e,r);
+});
+cv.addEventListener('pointerup',e=>{ drag=null });
+cv.addEventListener('pointercancel',()=>{drag=null});
+cv.addEventListener('pointerleave',()=>{ $('tip').hidden=true });
+cv.addEventListener('dblclick',e=>{
+  const r=cv.getBoundingClientRect();
+  zoomBy(1/3,(e.clientX-r.left)/r.width);
+});
+window.addEventListener('keydown',e=>{
+  if(document.activeElement&&['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if(e.key==='ArrowLeft'){panBy(-0.25);e.preventDefault()}
+  else if(e.key==='ArrowRight'){panBy(0.25);e.preventDefault()}
+  else if(e.key==='+'||e.key==='='){zoomBy(1/2.2);e.preventDefault()}
+  else if(e.key==='-'){zoomBy(2.2);e.preventDefault()}
+});
+
+function showTip(e,r){
+  const tip=$('tip');
+  const bp=Math.floor(x2bp(e.clientX-r.left));
+  if(bp<V.start||bp>=V.end){ tip.hidden=true; return }
+  let html=`<b>${V.chrom}:${fmt(bp+1)}</b>`;
+  const p=lastPayload;
+  if(p){
+    if(p.kind==='seq'&&p.seq){ const c=p.seq[bp-V.start]; if(c) html+=`<br>base ${c}` }
+    else if(p.kind==='wig'){
+      const v=p.vals.find(v=>bp>=v.start&&bp<v.end);
+      if(v) html+=`<br>${p.which==='phylop'?'phyloP':'phastCons'} ${v.value.toFixed(3)}`;
+    }else if(p.kind==='zoom'){
+      const b=p.bins.find(b=>bp>=b.start&&bp<b.end);
+      if(b) html+=`<br>mean ${b.mean.toFixed(3)}<br>min ${b.min.toFixed(2)} · max ${b.max.toFixed(2)}`;
+    }else if(p.kind==='gencode'&&p.tx){
+      const hits=p.tx.filter(t=>bp>=t.start&&bp<t.end).slice(0,4);
+      for(const t of hits){
+        const inExon=t.exons.some(x=>bp>=x.start&&bp<x.end);
+        html+=`<br>${t.gene} ${t.name} ${t.strand}${inExon?' · exon':' · intron'}`;
+      }
+    }else if(p.kind==='mafsum'){
+      const f=p.feats.find(f=>bp>=f.start&&bp<f.end);
+      if(f) html+=`<br>identity ${(parseFloat(f.fields[1])||0).toFixed(3)}`;
+    }
+  }
+  tip.innerHTML=html;
+  tip.hidden=false;
+  const pr=cv.parentElement.getBoundingClientRect();
+  const x=e.clientX-pr.left, y=e.clientY-pr.top;
+  tip.style.left=Math.min(x+12,pr.width-tip.offsetWidth-6)+'px';
+  tip.style.top=Math.max(4,y-tip.offsetHeight-10)+'px';
+}
+
+/* ============================ locus + gene search ============================ */
+function parseLocus(s){
+  const m=s.replace(/,/g,'').trim().match(/^(chr[\w._]+)\s*[:\s]\s*([0-9]+)\s*[-–]\s*([0-9]+)$/i);
+  if(m) return {chrom:m[1],start:Math.max(0,+m[2]-1),end:+m[3]};
+  const m2=s.replace(/,/g,'').trim().match(/^(chr[\w._]+)$/i);
+  if(m2) return {chrom:m2[1],start:0,end:null};
+  return null;
+}
+async function goToLocus(loc){
+  try{
+    V.chromSize=await SRC.twobit.chromSize(loc.chrom);
+  }catch(e){ setMsg(`No sequence named ${loc.chrom} in hg38.`); return }
+  V.chrom=loc.chrom;
+  setView(loc.start,loc.end===null?V.chromSize:loc.end);
+}
+async function searchGene(term){
+  const url=`https://api.genome.ucsc.edu/search?search=${encodeURIComponent(term)}&genome=hg38`;
+  const res=await fetch(url);
+  if(!res.ok) throw new Error('search failed');
+  const j=await res.json();
+  const seen=new Set(), out=[];
+  const order=['hgnc','knownGene','mane','ncbiRefSeqCurated'];
+  const blocks=(j.positionMatches||[]).slice().sort(
+    (a,b)=>(order.indexOf(a.trackName)+99)%99-(order.indexOf(b.trackName)+99)%99);
+  for(const blk of blocks){
+    for(const m of (blk.matches||[])){
+      const pos=m.position||'';
+      const pm=pos.match(/^(chr[\w._]+):(\d+)-(\d+)$/);
+      if(!pm) continue;
+      const name=(m.posName||'').replace(/&#x2F;/g,'/');
+      const key=name+pos;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      out.push({name,pos,chrom:pm[1],start:+pm[2]-1,end:+pm[3],
+        desc:(m.description||blk.description||'').slice(0,90),track:blk.trackName});
+      if(out.length>=25) return out;
+    }
+  }
+  return out;
+}
+const hitsBox=$('hits');
+function closeHits(){ hitsBox.hidden=true; hitsBox.innerHTML='' }
+function showHits(list){
+  hitsBox.innerHTML='';
+  if(!list.length){
+    const d=document.createElement('div'); d.className='hit';
+    d.innerHTML='<i>No match in hg38.</i>'; hitsBox.appendChild(d);
+    hitsBox.hidden=false; return;
+  }
+  for(const hgene of list){
+    const d=document.createElement('div'); d.className='hit'; d.tabIndex=0;
+    const b=document.createElement('b'); b.textContent=hgene.name;
+    const i=document.createElement('i'); i.textContent=hgene.desc;
+    const c=document.createElement('code'); c.textContent=hgene.pos;
+    d.append(b,i,c);
+    const pick=async()=>{
+      closeHits();
+      const pad=Math.round((hgene.end-hgene.start)*0.05);
+      V.chromSize=await SRC.twobit.chromSize(hgene.chrom);
+      V.chrom=hgene.chrom;
+      setView(hgene.start-pad,hgene.end+pad);
+    };
+    d.onclick=pick;
+    d.onkeydown=e=>{ if(e.key==='Enter') pick() };
+    hitsBox.appendChild(d);
+  }
+  hitsBox.hidden=false;
+}
+async function submitLocus(){
+  const raw=$('locusInput').value.trim();
+  if(!raw) return;
+  closeHits();
+  const loc=parseLocus(raw);
+  if(loc){ await goToLocus(loc); return }
+  setMsg('Searching…');
+  try{ showHits(await searchGene(raw)); setMsg(null) }
+  catch(e){ setMsg('Search failed: '+e.message) }
+}
+$('goBtn').onclick=submitLocus;
+$('locusInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();submitLocus()} });
+document.addEventListener('click',e=>{ if(!e.target.closest('.locus')) closeHits() });
+
+/* ============================ export ============================ */
+function exportHint(){
+  return {seq:'Extract writes FASTA for the visible interval.',
+    gencode:'Extract writes BED12, one line per transcript.',
+    phylop:'Extract writes bedGraph of phyloP values.',
+    phastcons:'Extract writes bedGraph of phastCons values.',
+    multiz:'Extract writes the MAF blocks, or bedGraph of summary identity when zoomed out.'}[V.mode];
+}
+function wrap60(s){ const o=[]; for(let i=0;i<s.length;i+=60) o.push(s.slice(i,i+60)); return o.join('\n') }
+async function buildExport(){
+  const loc=`${V.chrom}:${V.start+1}-${V.end}`;
+  const stamp=`# Monotrack · hg38 · ${loc} · ${new Date().toISOString()}`;
+  if(V.mode==='seq'){
+    let seq;
+    if(lastPayload&&lastPayload.kind==='seq'&&lastPayload.seq&&lastPayload.seq.length===V.end-V.start)
+      seq=lastPayload.seq;
+    else seq=await SRC.twobit.sequence(V.chrom,V.start,V.end);
+    return {text:`>${loc} hg38\n${wrap60(seq)}\n`,name:`hg38_${V.chrom}_${V.start+1}_${V.end}.fa`};
+  }
+  if(V.mode==='gencode'){
+    const feats=await SRC.gencode.bedFeatures(V.chrom,V.start,V.end,30000);
+    const lines=[`# GENCODE V50 (knownGene) · ${loc}`,
+      '# chrom\tstart\tend\tname\tscore\tstrand\tthickStart\tthickEnd\titemRgb\tblockCount\tblockSizes\tblockStarts\tgene'];
+    for(const f of feats){
+      const t=parseGenePred(f);
+      const sizes=t.exons.map(e=>e.end-e.start).join(',');
+      const starts=t.exons.map(e=>e.start-t.start).join(',');
+      lines.push([t.chrom,t.start,t.end,t.name,0,t.strand,t.thickStart,t.thickEnd,'0',
+        t.exons.length,sizes,starts,t.gene].join('\t'));
+    }
+    return {text:lines.join('\n')+'\n',name:`gencodeV50_${V.chrom}_${V.start+1}_${V.end}.bed`};
+  }
+  if(V.mode==='phylop'||V.mode==='phastcons'){
+    const src=V.mode==='phylop'?SRC.phylop:SRC.phastcons;
+    const label=V.mode==='phylop'?'phyloP470way':'phastCons470way';
+    const span=V.end-V.start;
+    if(span<=2000000){
+      const vals=await src.wigValues(V.chrom,V.start,V.end);
+      const lines=[`# ${label} base-level · ${loc}`,`track type=bedGraph name=${label}`];
+      for(const v of vals) lines.push(`${V.chrom}\t${v.start}\t${v.end}\t${v.value}`);
+      return {text:lines.join('\n')+'\n',name:`${label}_${V.chrom}_${V.start+1}_${V.end}.bedGraph`};
+    }
+    const z=await src.zoomValues(V.chrom,V.start,V.end,4000);
+    const lines=[`# ${label} summary bins (reduction ${z?z.reductionLevel:'n/a'}) · ${loc}`,
+      '# chrom\tstart\tend\tmean\tmin\tmax\tvalidCount'];
+    for(const b of (z?z.bins:[]))
+      lines.push(`${V.chrom}\t${b.start}\t${b.end}\t${b.mean}\t${b.min}\t${b.max}\t${b.validCount}`);
+    return {text:lines.join('\n')+'\n',name:`${label}_bins_${V.chrom}_${V.start+1}_${V.end}.bedGraph`};
+  }
+  // multiz
+  const span=V.end-V.start;
+  if(span<=4000){
+    const feats=await SRC.maf.bedFeatures(V.chrom,V.start,V.end,400,12*1024*1024);
+    const out=['##maf version=1 scoring=multiz470way',stamp];
+    for(const f of feats){ out.push(parseMaf(f).raw.trimEnd(),'') }
+    return {text:out.join('\n')+'\n',name:`multiz470way_${V.chrom}_${V.start+1}_${V.end}.maf`};
+  }
+  const feats=await SRC.mafsum.bedFeatures(V.chrom,V.start,V.end,60000,8*1024*1024);
+  const mine=feats.filter(f=>f.fields[0]===V.species);
+  const lines=[`# multiz470way summary · ${V.species} · ${loc}`,'# chrom\tstart\tend\tidentity'];
+  for(const f of mine) lines.push(`${V.chrom}\t${f.start}\t${f.end}\t${f.fields[1]}`);
+  return {text:lines.join('\n')+'\n',name:`multiz_${V.species}_${V.chrom}_${V.start+1}_${V.end}.bedGraph`};
+}
+let exportName='monotrack.txt';
+$('extractBtn').onclick=async()=>{
+  const btn=$('extractBtn'); btn.disabled=true; btn.textContent='Extracting…';
+  $('toast').textContent='';
+  try{
+    const {text,name}=await buildExport();
+    $('dataOut').value=text; exportName=name;
+    $('copyBtn').disabled=false; $('dlBtn').disabled=false;
+    const kb=(new Blob([text]).size/1024).toFixed(1);
+    $('dataNote').textContent=`${name} · ${kb} KiB · ${text.split('\n').length-1} lines`;
+    updateNet();
+  }catch(e){
+    $('dataOut').value='';
+    $('dataNote').textContent='Extract failed: '+e.message;
+  }
+  btn.disabled=false; btn.textContent='Extract';
+};
+$('copyBtn').onclick=async()=>{
+  const text=$('dataOut').value;
+  try{ await navigator.clipboard.writeText(text); $('toast').textContent='Copied' }
+  catch(e){ $('dataOut').select(); $('toast').textContent='Press ⌘/Ctrl+C to copy' }
+  setTimeout(()=>{$('toast').textContent=''},2200);
+};
+$('dlBtn').onclick=()=>{
+  const blob=new Blob([$('dataOut').value],{type:'text/plain'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=exportName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  $('toast').textContent='If nothing saved, use Copy — downloads are blocked in embedded views.';
+  setTimeout(()=>{$('toast').textContent=''},5000);
+};
+
+/* ============================ mode + species wiring ============================ */
+const spSel=$('spSel');
+for(const [db,common] of SPECIES){
+  const o=document.createElement('option');
+  o.value=db; o.textContent=`${common} · ${db}`;
+  spSel.appendChild(o);
+}
+spSel.value=V.species;
+spSel.onchange=()=>{ V.species=spSel.value; scheduleRender() };
+$('modeSel').onchange=e=>{
+  V.mode=e.target.value;
+  $('spWrap').hidden=V.mode!=='multiz';
+  scheduleRender();
+};
+$('spWrap').hidden=true;
+
+let rT;
+window.addEventListener('resize',()=>{ clearTimeout(rT); rT=setTimeout(render,160) });
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+mq.addEventListener?.('change',()=>render());
+new MutationObserver(()=>render()).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+/* ============================ boot ============================ */
+(async function boot(){
+  try{
+    V.chromSize=await SRC.twobit.chromSize('chr6');
+  }catch(e){ /* keep the fallback size */ }
+  await render();
+})();
+</script>
