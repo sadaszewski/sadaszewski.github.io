@@ -116,6 +116,15 @@ canvas#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cur
 .hit code{font:500 10px/1.3 var(--font-mono);color:var(--fg-dim);margin-left:auto;white-space:nowrap}
 .dlrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .dlrow button{flex:1 1 auto}
+#detail h2{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+#detail-ttl{font:500 10.5px/1.3 var(--font-mono);color:var(--fg-dim);text-transform:none;letter-spacing:0}
+#detail-body{max-height:300px;overflow:auto;margin-top:6px}
+#detail-body .empty{font:400 11px/1.4 var(--font-sans);color:var(--fg-faint);padding:4px 0}
+.findrow{display:flex;gap:6px;align-items:center;margin-top:7px}
+.findrow input{flex:1 1 auto;min-width:0}
+.findrow button{flex:0 0 auto}
+#findstat{flex:1 1 auto;text-align:center;font:500 10.5px/1.3 var(--font-mono);color:var(--fg-dim)}
+#findq.bad{border-color:var(--repeat)}
 #dlout{width:100%;height:92px;margin-top:8px;font:400 10.5px/1.45 var(--font-mono);color:var(--fg);
   background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px;white-space:pre;overflow:auto;resize:vertical}
 </style>
@@ -152,13 +161,6 @@ canvas#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cur
     <section class="stage">
       <div class="canvas-wrap">
         <canvas id="cv"></canvas>
-        <div id="pop" hidden>
-          <header>
-            <div class="ttl" id="pop-ttl"></div>
-            <button class="x" id="pop-x" aria-label="Close">&times;</button>
-          </header>
-          <div class="body" id="pop-body"></div>
-        </div>
       </div>
       <div class="hud" id="hud"></div>
     </section>
@@ -172,6 +174,22 @@ canvas#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cur
       <div class="card">
         <h2>Legend</h2>
         <div class="legend" id="legend"></div>
+      </div>
+      <div class="card" id="detail">
+        <h2>Selection <span class="ttl" id="detail-ttl"></span></h2>
+        <div class="body" id="detail-body"></div>
+      </div>
+      <div class="card">
+        <h2>Find sequence</h2>
+        <div class="findrow">
+          <input id="findq" placeholder="e.g. CAGCAGCAG" spellcheck="false" autocomplete="off" aria-label="Sequence to find">
+          <button id="findgo">Find</button>
+        </div>
+        <div class="findrow">
+          <button id="findprev" disabled>&lsaquo; Prev</button>
+          <span id="findstat">no search</span>
+          <button id="findnext" disabled>Next &rsaquo;</button>
+        </div>
       </div>
       <div class="card">
         <h2>Data for this view</h2>
@@ -774,6 +792,23 @@ function draw(){
       }
     }
   }
+  if(FIND.hits.length){
+    const cssf=getComputedStyle(document.documentElement).getPropertyValue("--repeat").trim()||"#e0a955";
+    ctx.strokeStyle=cssf; ctx.lineWidth=Math.max(1,Math.min(2,z*0.25));
+    const L=FIND.len;
+    for(const p of FIND.hits){
+      const i0=p-OFF, i1=i0+L;
+      const ra=Math.floor(i0/bpr), rb=Math.floor((i1-1)/bpr);
+      if(rb<r0-1||ra>r1)continue;
+      for(let r=Math.max(ra,r0-1);r<=Math.min(rb,r1);r++){
+        const s=Math.max(i0,r*bpr)%bpr;
+        const e2=(Math.min(i1,(r+1)*bpr)-1)%bpr+1;
+        const x=(s-ox)*z, y=(r-oy)*H, w=(e2-s)*z;
+        if(x>CW||x+w<0)continue;
+        ctx.strokeRect(x+.5,y+.5,Math.max(w-1,1.5),Math.max(H-1,1.5));
+      }
+    }
+  }
   if(hover&&(!sel||hover[0]!==sel[0])){
     const q=rangeRect(hover);
     ctx.strokeStyle=cssv("--fg-dim"); ctx.lineWidth=1;
@@ -855,40 +890,41 @@ function baseRows(p){
   }
   return out;
 }
-const pop=$("pop"), popTtl=$("pop-ttl"), popBody=$("pop-body");
-$("pop-x").onclick=()=>{pop.hidden=true;sel=null;draw()};
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!pop.hidden){pop.hidden=true;sel=null;draw()}});
+const detailBody=$("detail-body"), detailTtl=$("detail-ttl");
+const pop={hidden:true};            /* retained so existing clear-selection calls keep working */
 function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
-async function openPop(r){
-  sel=r;
+function clearSelection(){ sel=null; pop.hidden=true; renderDetail(null); draw(); }
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&sel&&document.activeElement!==$("findq")&&document.activeElement!==$("locus")) clearSelection();
+});
+function renderDetail(r){
+  if(!r){
+    detailTtl.textContent='';
+    detailBody.innerHTML='<div class="empty">Click a cell on the sheet to inspect it.</div>';
+    return;
+  }
   const p=r[0], n=r[1]-r[0];
-  popTtl.innerHTML="<b>"+CHROM+":"+fmt(p+1)+(n>1?"–"+fmt(r[1]):"")+"</b><span>"+
-    (n>1?fmt(n)+" bp in this cell · annotations for the first base":"single base")+"</span>";
+  detailTtl.textContent=CHROM+":"+fmt(p+1)+(n>1?"–"+fmt(r[1]):"")+(n>1?" · "+fmt(n)+" bp/cell":"");
   let html='<div class="grp"><h3>This base</h3><dl class="kv">'+
     baseRows(p).map(row=>"<dt>"+esc(row[0])+"</dt><dd"+(row[2]?' class="hl"':"")+">"+esc(row[1])+"</dd>").join("")+
     "</dl></div>";
-  const hits=TX.filter(t=>p>=t.start&&p<t.end);
-  html+='<div class="grp"><h3>GENCODE V50<i>'+hits.length+' overlapping</i></h3>';
-  if(!hits.length)html+='<div class="empty">no transcript on this base</div>';
-  for(const t of hits.slice(0,6))
+  const over=TX.filter(t=>p>=t.start&&p<t.end);
+  html+='<div class="grp"><h3>GENCODE V50<i>'+over.length+' overlapping</i></h3>';
+  if(!over.length)html+='<div class="empty">no transcript on this base</div>';
+  for(const t of over.slice(0,6))
     html+='<div class="ann"><b>'+esc(t.gene+" · "+t.name)+'</b><span>'+esc(t.type+" · "+t.strand+" strand · "+t.exons.length+" exons")+
       '</span><u>'+CHROM+":"+fmt(t.start+1)+"–"+fmt(t.end)+" · "+fmt(t.end-t.start)+" bp</u></div>";
   html+="</div>";
-  popBody.innerHTML=html;
-  popBody.scrollTop=0;
-  pop.hidden=false;
-  placePop(); draw();
+  if(FIND.hits.length){
+    const k=FIND.hits.indexOf(p);
+    if(k>=0)html+='<div class="grp"><h3>Find</h3><div class="ann"><b>hit '+(k+1)+' of '+fmt(FIND.hits.length)+
+      '</b><span>'+esc(FIND.query)+'</span></div></div>';
+  }
+  detailBody.innerHTML=html;
+  detailBody.scrollTop=0;
 }
-function placePop(){
-  if(pop.hidden||!sel||window.innerWidth<=860)return;
-  const q=rangeRect(sel), wrap=cv.parentElement.getBoundingClientRect();
-  const w=pop.offsetWidth||316, h=pop.offsetHeight||260;
-  let x=q.x+q.w+12, y=q.y-8;
-  if(x+w>wrap.width-6)x=q.x-w-12;
-  if(x<6)x=Math.min(Math.max(6,q.x+12),Math.max(6,wrap.width-w-6));
-  y=Math.max(6,Math.min(y,wrap.height-h-6));
-  pop.style.left=x+"px"; pop.style.top=y+"px";
-}
+function openPop(r){ sel=r; pop.hidden=false; renderDetail(r); draw(); }
+function placePop(){}
 const hud=$("hud");
 function renderHud(r){
   if(!r){hud.innerHTML="<span>drag to pan &middot; pinch or scroll to zoom &middot; click a cell for its annotations</span>";return}
@@ -956,6 +992,68 @@ cv.addEventListener("pointerleave",()=>{if(!pts.size){hover=null;renderHud(null)
 cv.addEventListener("wheel",e=>{e.preventDefault();zoomAt(e.offsetX,e.offsetY,Math.pow(0.9988,e.deltaY*(e.deltaMode===1?16:1)))},{passive:false});
 cv.addEventListener("dblclick",e=>{e.preventDefault();zoomAt(e.offsetX,e.offsetY,2.2)});
 
+/* ===================== sequence search ===================== */
+const FIND={query:'',len:0,hits:[],idx:-1};
+const IUPAC={A:'A',C:'C',G:'G',T:'T',U:'T',R:'[AG]',Y:'[CT]',S:'[GC]',W:'[AT]',K:'[GT]',M:'[AC]',
+  B:'[CGT]',D:'[AGT]',H:'[ACT]',V:'[ACG]',N:'[ACGTN]'};
+const MAX_HITS=200000;
+function clearFind(){
+  FIND.query=''; FIND.len=0; FIND.hits=[]; FIND.idx=-1;
+  $('findprev').disabled=true; $('findnext').disabled=true;
+  $('findstat').textContent='no search';
+  $('findq').classList.remove('bad');
+}
+function runFind(){
+  const raw=$('findq').value.trim().toUpperCase().replace(/[\s0-9]/g,'');
+  if(!raw){ clearFind(); draw(); return; }
+  if(!/^[ACGTURYSWKMBDHVN]+$/.test(raw)){
+    $('findq').classList.add('bad');
+    $('findstat').textContent='not a sequence';
+    FIND.hits=[]; FIND.idx=-1;
+    $('findprev').disabled=true; $('findnext').disabled=true;
+    draw(); return;
+  }
+  $('findq').classList.remove('bad');
+  if(!LEN){ $('findstat').textContent='no locus'; return; }
+  const exact=/^[ACGT]+$/.test(raw);
+  const hits=[];
+  if(exact){
+    let i=SEQ.indexOf(raw,0);
+    while(i!==-1&&hits.length<MAX_HITS){ hits.push(OFF+i); i=SEQ.indexOf(raw,i+1); }
+  }else{
+    const pat=raw.split('').map(c=>IUPAC[c]||c).join('');
+    const re=new RegExp('(?=('+pat+'))','g');
+    let m;
+    while((m=re.exec(SEQ))!==null&&hits.length<MAX_HITS){
+      hits.push(OFF+m.index);
+      re.lastIndex=m.index+1;
+    }
+  }
+  FIND.query=raw; FIND.len=raw.length; FIND.hits=hits; FIND.idx=hits.length?0:-1;
+  const more=hits.length>=MAX_HITS?'+':'';
+  $('findstat').textContent=hits.length?('1 / '+fmt(hits.length)+more):'no hits';
+  $('findprev').disabled=hits.length<2; $('findnext').disabled=hits.length<2;
+  if(hits.length) gotoHit(0); else draw();
+}
+function gotoHit(k){
+  if(!FIND.hits.length)return;
+  const n=FIND.hits.length;
+  FIND.idx=((k%n)+n)%n;
+  const p=FIND.hits[FIND.idx];
+  $('findstat').textContent=(FIND.idx+1)+' / '+fmt(n)+(n>=MAX_HITS?'+':'');
+  if(z<6)z=8;
+  centerOn(p);
+  const b=binSize(), i=p-OFF, row=Math.floor(i/bpr), c0=Math.floor((i%bpr)/b)*b;
+  openPop([row*bpr+c0+OFF, Math.min(LEN,row*bpr+Math.min(bpr,c0+b))+OFF]);
+}
+$('findgo').onclick=runFind;
+$('findq').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); if(FIND.hits.length&&FIND.query===$('findq').value.trim().toUpperCase().replace(/[\s0-9]/g,'')) gotoHit(FIND.idx+1); else runFind(); }
+});
+$('findq').addEventListener('input',()=>{ if(!$('findq').value.trim()) { clearFind(); draw(); } });
+$('findprev').onclick=()=>gotoHit(FIND.idx-1);
+$('findnext').onclick=()=>gotoHit(FIND.idx+1);
+
 /* ===================== locus loading ===================== */
 function setSpanLabel(){
   $('span-label').textContent=CHROM+":"+fmt(OFF+1)+"–"+fmt(OFF+LEN)+" · "+fmt(LEN)+" bp · hg38";
@@ -985,7 +1083,7 @@ async function loadLocus(chrom,start,end){
     if(tk!==loadToken)return;
     CHROM=chrom; OFF=start; LEN=seq.length; SEQ=seq;
     PHYLOP=null; PHASTCONS=null; MZ=null; MZCHAR=null; mzLoadedFor=null;
-    sel=null; hover=null; pop.hidden=true;
+    sel=null; hover=null; pop.hidden=true; clearFind(); renderDetail(null);
 
     busy('transcripts…');
     const feats=await SRC.gencode.bed(CHROM,OFF,OFF+LEN,30000);
@@ -1120,7 +1218,7 @@ $('mzload').onclick=async()=>{
 };
 $('bpr').onchange=e=>{
   const keep=sel?sel[0]:Math.round(OFF+(oy+CH/rh()/2)*bpr);
-  bpr=+e.target.value; sel=null; pop.hidden=true;
+  bpr=+e.target.value; sel=null; pop.hidden=true; renderDetail(null);
   buildSheet(); fit(); centerOn(Math.max(OFF,Math.min(OFF+LEN-1,keep)));
 };
 $('zin').onclick=()=>zoomAt(CW/2,CH/2,1.6);
@@ -1187,7 +1285,7 @@ function applyTheme(){ P=themeIsDark()?PAL.dark:PAL.light; if(LEN){buildSheet();
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",applyTheme);
 new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 let rt;
-window.addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{drawMini();resize();placePop()},80)});
-syncCtl(); legendFor(); renderHud(null); mzNote();
+window.addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{drawMini();resize()},80)});
+syncCtl(); legendFor(); renderHud(null); mzNote(); clearFind(); renderDetail(null);
 loadLocus('chr6',16299111,16761491);
 </script>
